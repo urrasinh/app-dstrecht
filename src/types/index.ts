@@ -62,7 +62,12 @@ export interface WorkerErrorMessage {
     error: string;
 }
 
-export type WorkerResponse = WorkerProgressMessage | WorkerSuccessMessage | WorkerErrorMessage;
+export interface WorkerAdvancedPreviewsSuccessMessage {
+    type: 'ADVANCED_PREVIEWS_SUCCESS';
+    previews: { filterId: string; imageData: ImageData }[];
+}
+
+export type WorkerResponse = WorkerProgressMessage | WorkerSuccessMessage | WorkerErrorMessage | WorkerAdvancedPreviewsSuccessMessage;
 
 // --- Advanced Filters Configuration ---
 export type AdvancedFilterCategory = 'GLOBAL' | 'CHANNELS' | 'EDGES' | 'EXPERIMENTAL';
@@ -95,6 +100,11 @@ export interface WorkerAdvancedFilterRequest {
     params: Record<string, number>;
 }
 
-export type ExtendedWorkerRequest = WorkerRequest | WorkerAdvancedFilterRequest;
+export interface WorkerGenerateAdvancedPreviewsRequest {
+    type: 'GENERATE_ADVANCED_PREVIEWS';
+    previewImageData: ImageData;
+}
+
+export type ExtendedWorkerRequest = WorkerRequest | WorkerAdvancedFilterRequest | WorkerGenerateAdvancedPreviewsRequest;
 
 // Re-export so old references don't break, but ideally union them in the main worker usage
