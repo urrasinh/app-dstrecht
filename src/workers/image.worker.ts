@@ -62,15 +62,37 @@ function applyDStretch(imageData: ImageData, spaceName: string, sigma: number): 
     let result: Float32Array | null = new Float32Array(len * 3);
     let mins = [Infinity, Infinity, Infinity], maxs = [-Infinity, -Infinity, -Infinity];
 
+    // @ts-ignore mathjs types
+    const rawTransform = Array.isArray(transform) ? transform : transform.valueOf();
+
+    // Convert transform matrix to vanilla JS array of arrays for speed
+    const t = [
+        [rawTransform[0][0], rawTransform[0][1], rawTransform[0][2]],
+        [rawTransform[1][0], rawTransform[1][1], rawTransform[1][2]],
+        [rawTransform[2][0], rawTransform[2][1], rawTransform[2][2]]
+    ];
+
     for (let i = 0; i < len; i++) {
-        const d = [pixels[i * 3] - means[0], pixels[i * 3 + 1] - means[1], pixels[i * 3 + 2] - means[2]];
-        const sArray = multiply(transform, d);
-        // @ts-ignore mathjs types
-        const s = Array.isArray(sArray) ? sArray : sArray.valueOf() as number[];
-        for (let j = 0; j < 3; j++) {
-            const val = s[j] * sigma; result[i * 3 + j] = val;
-            if (val < mins[j]) mins[j] = val; if (val > maxs[j]) maxs[j] = val;
-        }
+        const d0 = pixels[i * 3] - means[0];
+        const d1 = pixels[i * 3 + 1] - means[1];
+        const d2 = pixels[i * 3 + 2] - means[2];
+
+        // Manual matrix multiplication (Fastest unrolled approach)
+        const s0 = t[0][0] * d0 + t[0][1] * d1 + t[0][2] * d2;
+        const s1 = t[1][0] * d0 + t[1][1] * d1 + t[1][2] * d2;
+        const s2 = t[2][0] * d0 + t[2][1] * d1 + t[2][2] * d2;
+
+        const val0 = s0 * sigma;
+        const val1 = s1 * sigma;
+        const val2 = s2 * sigma;
+
+        result[i * 3] = val0;
+        result[i * 3 + 1] = val1;
+        result[i * 3 + 2] = val2;
+
+        if (val0 < mins[0]) mins[0] = val0; if (val0 > maxs[0]) maxs[0] = val0;
+        if (val1 < mins[1]) mins[1] = val1; if (val1 > maxs[1]) maxs[1] = val1;
+        if (val2 < mins[2]) mins[2] = val2; if (val2 > maxs[2]) maxs[2] = val2;
     }
 
     // Free pixels array

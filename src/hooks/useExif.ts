@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import EXIF from 'exif-js';
+import exifr from 'exifr';
 import type { ExifData } from '../types';
 
 export function useExif() {
@@ -13,54 +13,38 @@ export function useExif() {
         origH: 0
     });
 
-    const convertDMSToDD = (degrees: number, minutes: number, seconds: number, direction: string) => {
-        let dd = degrees + minutes / 60 + seconds / (60 * 60);
-        if (direction === "S" || direction === "W") dd = dd * -1;
-        return dd;
-    };
+    const extractExif = useCallback(async (file: File): Promise<number> => {
+        try {
+            const gpsData = await exifr.gps(file);
+            const exif = await exifr.parse(file, ['Orientation', 'Make', 'Model', 'DateTimeOriginal']);
 
-    const extractExif = useCallback((file: File): Promise<number> => {
-        return new Promise((resolve) => {
-            // @ts-ignore EXIF is not fully typed
-            EXIF.getData(file as any, function (this: any) {
-                // @ts-ignore
-                const orientation = EXIF.getTag(this, "Orientation") || 1;
-                // @ts-ignore
-                const make = EXIF.getTag(this, "Make") || 'Desconocido';
-                // @ts-ignore
-                const model = EXIF.getTag(this, "Model") || '';
-                // @ts-ignore
-                const date = EXIF.getTag(this, "DateTimeOriginal") || 'Fecha no registrada';
+            const orientation = exif?.Orientation || 1;
+            const make = exif?.Make || 'Desconocido';
+            const model = exif?.Model || '';
+            const date = exif?.DateTimeOriginal ? new Date(exif.DateTimeOriginal).toLocaleString() : 'Fecha no registrada';
 
-                // @ts-ignore
-                const lat = EXIF.getTag(this, "GPSLatitude");
-                // @ts-ignore
-                const latRef = EXIF.getTag(this, "GPSLatitudeRef");
-                // @ts-ignore
-                const lon = EXIF.getTag(this, "GPSLongitude");
-                // @ts-ignore
-                const lonRef = EXIF.getTag(this, "GPSLongitudeRef");
+            let latDD = null;
+            let lonDD = null;
 
-                let latDD = null;
-                let lonDD = null;
+            if (gpsData) {
+                latDD = gpsData.latitude;
+                lonDD = gpsData.longitude;
+            }
 
-                if (lat && lon && latRef && lonRef) {
-                    latDD = convertDMSToDD(lat[0], lat[1], lat[2], latRef);
-                    lonDD = convertDMSToDD(lon[0], lon[1], lon[2], lonRef);
-                }
+            setExifData(prev => ({
+                ...prev,
+                make,
+                model,
+                date,
+                latDD,
+                lonDD
+            }));
 
-                setExifData(prev => ({
-                    ...prev,
-                    make,
-                    model,
-                    date,
-                    latDD,
-                    lonDD
-                }));
-
-                resolve(orientation);
-            });
-        });
+            return orientation;
+        } catch (error) {
+            console.error('Error extracting EXIF data:', error);
+            return 1; // Default orientation on error
+        }
     }, []);
 
     const setOriginalDimensions = useCallback((w: number, h: number) => {
