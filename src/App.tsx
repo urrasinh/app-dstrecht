@@ -4,10 +4,13 @@ import { useGestures } from './hooks/useGestures';
 import { MODES, VISUAL_FILTERS } from './utils/dstretch';
 import type { WorkerRequest, WorkerResponse } from './types';
 
+import { ADVANCED_FILTERS } from './utils/filters';
+
 import { InfoModal } from './components/InfoModal';
 import { ResolutionModal } from './components/ResolutionModal';
 import { ControlsPanel } from './components/ControlsPanel';
 import { FloatingTools } from './components/FloatingTools';
+import { AdvancedFiltersPanel } from './components/AdvancedFiltersPanel';
 import { Spinner } from './components/Spinner';
 
 import './index.css';
@@ -44,6 +47,11 @@ export default function App() {
   const [contrast, setContrast] = useState(100);
   const [intensity, setIntensity] = useState(100);
 
+  // State: Advanced Filters
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [activeAdvancedFilter, setActiveAdvancedFilter] = useState<string | null>(null);
+  const [advancedFilterParams, setAdvancedFilterParams] = useState<Record<string, Record<string, number>>>({});
+
   // Hooks
   const { exifData, extractExif, setOriginalDimensions } = useExif();
   const {
@@ -70,14 +78,25 @@ export default function App() {
           newCachedModes[img.modeName] = img.imageData;
         });
 
-        setCachedModes(newCachedModes);
-        setBaseImage(res.baseImageData);
+        // Merge with existing modes so we don't lose YDS/YBR if we only returned ADVANCED
+        setCachedModes(prev => {
+          const merged = { ...prev, ...newCachedModes };
+          return merged;
+        });
 
-        // Generate Previews synchronously for UI
-        generatePreviews(res.baseImageData);
+        // Only update base image if it's an INIT_PROCESS (when multiple modes come back).
+        // Since ADVANCED mode only returns 1 processed image, we can use that hint:
+        if (res.processedImages.length > 1) {
+          setBaseImage(res.baseImageData);
+          generatePreviews(res.baseImageData);
+          if (viewportRef.current) {
+            resetCamera(res.baseImageData.width, res.baseImageData.height, viewportRef.current.clientWidth, viewportRef.current.clientHeight);
+          }
+        }
 
-        if (viewportRef.current) {
-          resetCamera(res.baseImageData.width, res.baseImageData.height, viewportRef.current.clientWidth, viewportRef.current.clientHeight);
+        if (res.processedImages.length === 1 && res.processedImages[0].modeName === 'ADVANCED') {
+          setCurrentMode('ADVANCED');
+          setShowAdvancedFilters(false); // Close panel on apply
         }
 
         setIsProcessing(false);
@@ -118,47 +137,98 @@ export default function App() {
     setTimeout(() => setToastMsg(''), 3000);
   };
 
-  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    extractExif(file).then((orientation) => {
+    setIsProcessing(true);
+    setLoadingProgress(0);
+    setLoadingText("ANALIZANDO IMAGEN...");
+
+    try {
+      // 1. Intentar extraer metadatos de forma asíncrona pero sin bloquear la carga si falla
+      let orientation = 1;
+      try {
+        orientation = await extractExif(file);
+      } catch (exifErr) {
+        console.warn("Exif extraction failed, using default orientation 1", exifErr);
+      }
+
+      setLoadingText("DECODIFICANDO IMAGEN...");
+
+      // 2. Método Híbrido Robusto: Usar FileReader + Image Nativa para mejor compatibilidad cruzada
       const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const oCanvas = document.createElement('canvas');
-          const oCtx = oCanvas.getContext('2d')!;
-          let iw = img.width, ih = img.height;
 
-          if ([5, 6, 7, 8].includes(orientation)) { oCanvas.width = ih; oCanvas.height = iw; }
-          else { oCanvas.width = iw; oCanvas.height = ih; }
-
-          oCtx.save();
-          switch (orientation) {
-            case 2: oCtx.translate(iw, 0); oCtx.scale(-1, 1); break;
-            case 3: oCtx.translate(iw, ih); oCtx.rotate(Math.PI); break;
-            case 4: oCtx.translate(0, ih); oCtx.scale(1, -1); break;
-            case 5: oCtx.rotate(0.5 * Math.PI); oCtx.scale(1, -1); break;
-            case 6: oCtx.rotate(0.5 * Math.PI); oCtx.translate(0, -ih); break;
-            case 7: oCtx.rotate(0.5 * Math.PI); oCtx.translate(iw, -ih); oCtx.scale(-1, 1); break;
-            case 8: oCtx.rotate(-0.5 * Math.PI); oCtx.translate(-iw, 0); break;
-          }
-          oCtx.drawImage(img, 0, 0, iw, ih);
-          oCtx.restore();
-
-          const rotatedImg = new Image();
-          rotatedImg.onload = () => {
-            setPendingRotatedImg(rotatedImg);
-            setOriginalDimensions(rotatedImg.width, rotatedImg.height);
-            setShowResModal(true);
-          };
-          rotatedImg.src = oCanvas.toDataURL('image/jpeg', 1.0);
-        };
-        img.src = event.target?.result as string;
+      reader.onerror = () => {
+        throw new Error("No se pudo leer el archivo físico.");
       };
+
+      reader.onload = (event) => {
+        if (!event.target?.result) {
+          setIsProcessing(false);
+          showToast("Error leyendo archivo");
+          return;
+        }
+
+        const img = new Image();
+        img.onerror = () => {
+          setIsProcessing(false);
+          showToast("Formato de imagen inválido o no soportado nativamente por tu navegador.");
+        };
+
+        img.onload = () => {
+          try {
+            const oCanvas = document.createElement('canvas');
+            const oCtx = oCanvas.getContext('2d')!;
+            let iw = img.width, ih = img.height;
+
+            if ([5, 6, 7, 8].includes(orientation)) { oCanvas.width = ih; oCanvas.height = iw; }
+            else { oCanvas.width = iw; oCanvas.height = ih; }
+
+            oCtx.save();
+            switch (orientation) {
+              case 2: oCtx.translate(iw, 0); oCtx.scale(-1, 1); break;
+              case 3: oCtx.translate(iw, ih); oCtx.rotate(Math.PI); break;
+              case 4: oCtx.translate(0, ih); oCtx.scale(1, -1); break;
+              case 5: oCtx.rotate(0.5 * Math.PI); oCtx.scale(1, -1); break;
+              case 6: oCtx.rotate(0.5 * Math.PI); oCtx.translate(0, -ih); break;
+              case 7: oCtx.rotate(0.5 * Math.PI); oCtx.translate(iw, -ih); oCtx.scale(-1, 1); break;
+              case 8: oCtx.rotate(-0.5 * Math.PI); oCtx.translate(-iw, 0); break;
+            }
+            // Use smoothing for high quality downscaling before data processing
+            oCtx.imageSmoothingEnabled = true;
+            oCtx.imageSmoothingQuality = 'high';
+            oCtx.drawImage(img, 0, 0, iw, ih);
+            oCtx.restore();
+
+            const rotatedImg = new Image();
+            rotatedImg.onload = () => {
+              setPendingRotatedImg(rotatedImg);
+              setOriginalDimensions(rotatedImg.width, rotatedImg.height);
+              setIsProcessing(false);
+              setShowResModal(true);
+            };
+
+            // Generate highest quality JPEG to pass to canvas to strip away exotic properties 
+            // from some WEBP/HEIC/RAWs that Safari/Chrome might struggle with in Canvas get/putImageData
+            rotatedImg.src = oCanvas.toDataURL('image/jpeg', 1.0);
+
+          } catch (canvasErr) {
+            console.error("Canvas manipulation failed", canvasErr);
+            setIsProcessing(false);
+            showToast("Error procesando imagen para web.");
+          }
+        };
+        img.src = event.target.result as string;
+      };
+
       reader.readAsDataURL(file);
-    });
+
+    } catch (error) {
+      console.error("Upload handler total failure", error);
+      setIsProcessing(false);
+      showToast("Error de subida inesperado.");
+    }
   };
 
   const startInitialProcessing = (img: HTMLImageElement, scaleDown: boolean) => {
@@ -182,6 +252,32 @@ export default function App() {
       imageData,
       scaleDown
     } as WorkerRequest);
+  };
+
+  const handleApplyAdvancedFilter = () => {
+    if (!baseImage || !activeAdvancedFilter || !workerRef.current || !canvasRef.current) return;
+
+    setIsProcessing(true);
+    setLoadingProgress(0);
+    setLoadingText("APLICANDO FILTRO AVANZADO...");
+
+    // Si el usuario quiere aplicarlo sobre TODO, podríamos mandar la imagen base original,
+    // o podríamos mandarla sobre lo que actualmente está viendo en el canvas filtrado. 
+    // Para simplificar, obtenemos la ImageData del canvas actual.
+    const sourceCanvas = document.createElement('canvas');
+    sourceCanvas.width = canvasRef.current.width;
+    sourceCanvas.height = canvasRef.current.height;
+    sourceCanvas.getContext('2d')!.drawImage(canvasRef.current, 0, 0);
+    const currentImageData = sourceCanvas.getContext('2d')!.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
+
+    const params = advancedFilterParams[activeAdvancedFilter] || {};
+
+    workerRef.current.postMessage({
+      type: 'PROCESS_ADVANCED_FILTER',
+      imageData: currentImageData,
+      filterId: activeAdvancedFilter,
+      params
+    });
   };
 
   const generatePreviews = (baseImgData: ImageData) => {
@@ -468,6 +564,34 @@ export default function App() {
         gpsFull={(exifData.latDD && exifData.lonDD) ? `${exifData.latDD.toFixed(6)}, ${exifData.lonDD.toFixed(6)}` : 'No registradas en el archivo'}
       />
 
+      <AdvancedFiltersPanel
+        isVisible={showAdvancedFilters}
+        onClose={() => setShowAdvancedFilters(false)}
+        filters={ADVANCED_FILTERS}
+        activeFilterId={activeAdvancedFilter}
+        filterParams={advancedFilterParams}
+        onFilterSelect={(id) => {
+          setActiveAdvancedFilter(id);
+          if (!advancedFilterParams[id]) {
+            const def = ADVANCED_FILTERS.find(f => f.id === id);
+            const defaultParams: Record<string, number> = {};
+            def?.params.forEach(p => defaultParams[p.id] = p.default);
+            setAdvancedFilterParams(prev => ({ ...prev, [id]: defaultParams }));
+          }
+        }}
+        onParamChange={(filterId, paramId, value) => {
+          setAdvancedFilterParams(prev => ({
+            ...prev,
+            [filterId]: {
+              ...(prev[filterId] || {}),
+              [paramId]: value
+            }
+          }));
+        }}
+        onApply={handleApplyAdvancedFilter}
+        isProcessing={isProcessing}
+      />
+
       {isProcessing && <Spinner progress={loadingProgress} message={loadingText} />}
 
       {/* Header */}
@@ -488,9 +612,21 @@ export default function App() {
           </label>
 
           {baseImage && (
-            <button onClick={downloadImage} className="text-emerald-400 bg-emerald-950/50 p-1.5 rounded-lg active:bg-emerald-900/80 transition-colors border border-emerald-900/50">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-            </button>
+            <>
+              <button
+                onClick={() => setShowAdvancedFilters(true)}
+                className="text-blue-400 font-bold text-xs bg-blue-950/40 px-3 py-1.5 rounded-lg active:bg-blue-900/80 transition-colors border border-blue-900/50 flex gap-1.5 items-center justify-center uppercase tracking-wide hover:bg-blue-900/50"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                </svg>
+                <span className="hidden sm:inline">Expertos</span>
+              </button>
+
+              <button onClick={downloadImage} className="text-emerald-400 bg-emerald-950/50 p-1.5 rounded-lg active:bg-emerald-900/80 transition-colors border border-emerald-900/50">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4-4m4 4V4" /></svg>
+              </button>
+            </>
           )}
         </div>
       </header>

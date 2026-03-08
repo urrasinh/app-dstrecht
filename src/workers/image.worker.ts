@@ -1,6 +1,7 @@
 import { eigs, multiply, diag, transpose } from 'mathjs';
-import type { WorkerRequest, WorkerResponse } from '../types';
+import type { ExtendedWorkerRequest, WorkerResponse } from '../types';
 import { MODES, rgbToLab } from '../utils/dstretch';
+import { processAdvancedFilter } from '../utils/advancedFilters';
 
 // Constants
 const MAX_PX = 2048;
@@ -118,7 +119,7 @@ function applyDStretch(imageData: ImageData, spaceName: string, sigma: number): 
 // Global scope for web worker
 const ctx: Worker = self as any;
 
-ctx.onmessage = async (e: MessageEvent<WorkerRequest>) => {
+ctx.onmessage = async (e: MessageEvent<ExtendedWorkerRequest>) => {
     const req = e.data;
 
     try {
@@ -165,6 +166,36 @@ ctx.onmessage = async (e: MessageEvent<WorkerRequest>) => {
                 baseImageData: targetImageData,
                 width: w,
                 height: h
+            } as WorkerResponse);
+
+        } else if (req.type === 'PROCESS_ADVANCED_FILTER') {
+            const { imageData, filterId, params } = req;
+
+            ctx.postMessage({
+                type: 'PROGRESS',
+                progress: 0,
+                message: `APLICANDO FILTRO...`
+            } as WorkerResponse);
+
+            const resultImageData = processAdvancedFilter(
+                imageData,
+                filterId,
+                params,
+                (pct) => {
+                    ctx.postMessage({
+                        type: 'PROGRESS',
+                        progress: pct,
+                        message: `PROCESANDO... ${pct}%`
+                    } as WorkerResponse);
+                }
+            );
+
+            ctx.postMessage({
+                type: 'SUCCESS',
+                processedImages: [{ modeName: 'ADVANCED', imageData: resultImageData }],
+                baseImageData: imageData, // we don't change the base
+                width: imageData.width,
+                height: imageData.height
             } as WorkerResponse);
 
         } else if (req.type === 'CROP' || req.type === 'ROTATE_90') {

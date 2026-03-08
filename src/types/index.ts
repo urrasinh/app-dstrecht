@@ -63,3 +63,38 @@ export interface WorkerErrorMessage {
 }
 
 export type WorkerResponse = WorkerProgressMessage | WorkerSuccessMessage | WorkerErrorMessage;
+
+// --- Advanced Filters Configuration ---
+export type AdvancedFilterCategory = 'GLOBAL' | 'CHANNELS' | 'EDGES' | 'EXPERIMENTAL';
+
+export interface AdvancedFilterDef {
+    id: string;
+    name: string;
+    description: string;
+    category: AdvancedFilterCategory;
+    params: {
+        id: string;
+        label: string;
+        type: 'slider';
+        min: number;
+        max: number;
+        step: number;
+        default: number;
+    }[];
+}
+
+export interface AdvancedFilterParams {
+    filterId: string;
+    values: Record<string, number>;
+}
+
+export interface WorkerAdvancedFilterRequest {
+    type: 'PROCESS_ADVANCED_FILTER';
+    imageData: ImageData;
+    filterId: string;
+    params: Record<string, number>;
+}
+
+export type ExtendedWorkerRequest = WorkerRequest | WorkerAdvancedFilterRequest;
+
+// Re-export so old references don't break, but ideally union them in the main worker usage
