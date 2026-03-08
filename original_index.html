@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    
+    <title>DStretch Field Pro - Performance Edition</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --safe-area-bottom: env(safe-area-inset-bottom, 0px); }
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; overflow: hidden; height: 100dvh; display: flex; flex-direction: column; touch-action: none; -webkit-tap-highlight-color: transparent; }
+        
+        /* Layout 55% / 45% */
+        .canvas-viewport { height: 55dvh; width: 100%; position: relative; overflow: hidden; background: #020617; display: flex; align-items: center; justify-content: center; touch-action: none; flex-shrink: 0; }
+        #placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; z-index: 5; }
+        .bottom-panel { height: 45dvh; width: 100%; background: #1e293b; border-top: 1px solid #334155; display: flex; flex-direction: column; padding-bottom: var(--safe-area-bottom); z-index: 20; box-shadow: 0 -4px 20px rgba(0,0,0,0.5); overflow-y: auto; flex-shrink: 0; }
+        canvas { box-shadow: 0 4px 30px rgba(0,0,0,0.8); transform-origin: center; will-change: transform; transition: filter 0.1s linear; z-index: 1; }
+        
+        /* Cuadrícula Dinámica para el Recorte */
+        #crop-grid {
+            position: absolute; inset: 0; z-index: 12; pointer-events: none;
+            opacity: 0; transition: opacity 0.2s ease-in-out;
+            display: flex; flex-direction: column;
+        }
+        #crop-grid.active { opacity: 1; }
+        .grid-line-h { width: 100%; height: 33.33%; border-bottom: 1px dashed rgba(255, 255, 255, 0.4); }
+        .grid-line-v { position: absolute; top: 0; bottom: 0; width: 33.33%; border-right: 1px dashed rgba(255, 255, 255, 0.4); }
+        .grid-border { position: absolute; inset: 0; border: 2px solid rgba(59, 130, 246, 0.6); box-shadow: inset 0 0 0 2000px rgba(0,0,0,0.1); } /* Viñeta sutil */
+
+        .meta-bar { position: absolute; top: 10px; left: 10px; background: rgba(15, 23, 42, 0.75); backdrop-filter: blur(4px); padding: 6px 10px; border-radius: 8px; font-size: 10px; color: #94a3b8; z-index: 15; display: flex; gap: 15px; border: 1px solid #334155; opacity: 0; transition: opacity 0.3s; pointer-events: none;}
+        .meta-bar.visible { opacity: 1; }
+        
+        .scroll-container { display: flex; overflow-x: auto; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; padding: 10px 14px; gap: 10px; scrollbar-width: none; }
+        .scroll-container::-webkit-scrollbar { display: none; }
+        .preview-card { cursor: pointer; transition: all 0.2s; border: 2px solid transparent; background: #0f172a; min-width: 65px; border-radius: 10px; overflow: hidden; flex-shrink: 0; opacity: 0.5; position: relative; }
+        .preview-card.active { border-color: #3b82f6; box-shadow: 0 0 12px rgba(59, 130, 246, 0.5); opacity: 1; transform: scale(1.05); }
+        .preview-card .badge { position: absolute; top: 0; right: 0; background: #3b82f6; color: white; font-size: 8px; padding: 1px 4px; border-bottom-left-radius: 4px; font-weight: bold;}
+        
+        .v-filter-btn { background: #334155; color: #cbd5e1; border: 1px solid #475569; border-radius: 8px; padding: 6px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0; transition: all 0.2s; }
+        .v-filter-btn.active { background: #3b82f6; color: white; border-color: #60a5fa; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4); }
+        .v-filter-btn.ultra { color: #fca5a5; border-color: #991b1b; }
+        .v-filter-btn.ultra.active { background: #ef4444; color: white; border-color: #f87171; box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4); }
+        
+        input[type="range"] { height: 24px; -webkit-appearance: none; background: transparent; width: 100%; }
+        input[type="range"]::-webkit-slider-runnable-track { height: 6px; background: #334155; border-radius: 99px; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; background: #3b82f6; margin-top: -9px; border: 3px solid #f8fafc; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+        
+        .floating-tools { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 14px; z-index: 10; }
+        .float-btn { width: 44px; height: 44px; border-radius: 50%; background: rgba(30, 41, 59, 0.85); color: white; display: flex; justify-content: center; align-items: center; border: 1px solid #475569; box-shadow: 0 4px 12px rgba(0,0,0,0.6); backdrop-filter: blur(4px); transition: all 0.2s; }
+        .float-btn.active { background: #3b82f6; border-color: #60a5fa; }
+        .float-btn.danger { background: #ef4444; border-color: #f87171; }
+        .float-btn.warning { color: #fde047; border-color: #ca8a04; }
+        
+        .loading-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 100; align-items: center; justify-content: center; flex-direction: column; backdrop-filter: blur(5px); text-center; padding: 20px;}
+        #toast { position: fixed; top: -100px; left: 50%; transform: translateX(-50%); background: #10b981; color: white; padding: 10px 20px; border-radius: 30px; font-size: 12px; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.5); transition: top 0.3s ease-in-out; z-index: 200; display: flex; align-items: center; gap: 8px; }
+        #toast.show { top: 20px; }
+
+        #resolution-modal { display: none; }
+        #resolution-modal.flex { display: flex; }
+        #info-modal { display: none; }
+        #info-modal.flex { display: flex; }
+
+        /* Menú Desplegable Superior Derecho */
+        .top-right-menu { position: absolute; top: 10px; right: 10px; z-index: 30; display: none;}
+        .top-right-menu.visible { display: block; }
+        .dropdown-panel { display: none; position: absolute; top: 46px; right: 0; background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(8px); border: 1px solid #334155; border-radius: 12px; width: 180px; flex-direction: column; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.8); }
+        .dropdown-panel.show { display: flex; }
+        .dropdown-item { padding: 12px 16px; color: #e2e8f0; font-size: 13px; font-weight: 600; display: flex; items-center; gap: 10px; border-bottom: 1px solid #1e293b; text-align: left;}
+        .dropdown-item:active { background: #3b82f6; color: white; }
+        .dropdown-item:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+
+    <div id="toast">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+        <span id="toast-msg">Acción exitosa</span>
+    </div>
+
+    <div id="resolution-modal" class="fixed inset-0 bg-slate-950/90 z-[200] items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-10 h-10 rounded-full bg-red-900/50 flex items-center justify-center text-red-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                </div>
+                <h3 class="text-lg font-bold text-white">Tamaño de Imagen</h3>
+            </div>
+            
+            <div class="bg-slate-900/50 p-3 rounded-lg mb-4 border border-slate-700">
+                <p class="text-xs text-slate-400 mb-1 uppercase tracking-widest font-bold">Detectado:</p>
+                <p class="text-lg text-red-400 font-mono font-bold" id="modal-dim"></p>
+                <p class="text-sm text-slate-300" id="modal-mp"></p>
+            </div>
+
+            <p class="text-xs text-slate-400 mb-6 leading-relaxed">Trabajar en <strong class="text-slate-200">Resolución Nativa</strong> te dará máxima calidad, pero el cálculo demorará. <strong class="text-slate-200">Optimizar (2048px)</strong> es rápido y previene que el teléfono se cierre.</p>
+            
+            <div class="flex flex-col gap-3">
+                <button id="btn-scale" class="w-full bg-red-600 text-white py-3.5 rounded-xl text-sm font-bold border border-red-500 active:bg-red-700 flex justify-center gap-2 items-center">
+                    Optimizar Rápido (2048px)
+                </button>
+                <button id="btn-native" class="w-full bg-slate-700 text-white py-3.5 rounded-xl text-sm font-bold border border-slate-600 active:bg-slate-600 flex justify-center gap-2 items-center">
+                    Mantener Nativa
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="info-modal" class="fixed inset-0 bg-slate-950/80 z-[200] items-center justify-center p-4 backdrop-blur-md">
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-sm w-full shadow-2xl relative">
+            <button id="close-info" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Información de Imagen
+            </h3>
+            
+            <div class="space-y-3 text-sm">
+                <div class="flex flex-col bg-slate-900/50 p-2.5 rounded-lg border border-slate-700">
+                    <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Cámara / Dispositivo</span>
+                    <span class="text-slate-200" id="info-camera">Desconocido</span>
+                </div>
+                <div class="flex flex-col bg-slate-900/50 p-2.5 rounded-lg border border-slate-700">
+                    <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Fecha de Captura</span>
+                    <span class="text-slate-200" id="info-date">Desconocida</span>
+                </div>
+                <div class="flex flex-col bg-slate-900/50 p-2.5 rounded-lg border border-slate-700">
+                    <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Resolución Original</span>
+                    <span class="text-red-300 font-mono" id="info-res">0x0 px</span>
+                </div>
+                <div class="flex flex-col bg-slate-900/50 p-2.5 rounded-lg border border-slate-700">
+                    <span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Coordenadas GPS</span>
+                    <span class="text-slate-200" id="info-gps-full">No registradas en el archivo</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading" class="loading-overlay">
+         <img src="filtro-collasuyo.svg" alt="Logo" >
+        <div class="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-red-500 mb-5"></div>
+        <p id="loading-text" class="text-sm font-bold text-red-100 tracking-widest">PREPARANDO IMAGEN...</p>
+        <p id="loading-progress" class="text-red-400 text-[18px] mt-2 font-mono font-bold">0%</p>
+        <p id="loading-subtext" class="text-[11px] text-slate-400 mt-2 max-w-[250px] leading-relaxed">No cierres la ventana, esto puede tardar varios segundos dependiendo del tamaño de la foto.</p>
+    </div>
+
+    <header class="h-14 bg-slate-900 flex items-center justify-between px-4 z-10 shrink-0 shadow-md">
+        <div class="flex items-center gap-2.5">
+          <div class="flex items-center justify-center gap-1">
+                <img src="collasuyo.svg" alt="Logo" class="h-7">
+                <span class="text-red-600 font-bold text-xs mt-2 tracking-tighter">App</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <label class="bg-red-600 active:bg-red-700 text-white px-3 py-1.5 rounded-lg text-sm font-semibold cursor-pointer shadow-lg transition-colors flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /></svg>
+                Cargar
+                <input type="file" id="upload" accept="image/*" class="hidden">
+            </label>
+            <button id="download" class="hidden text-green-300 bg-slate-800 p-1.5 rounded-lg active:bg-slate-700 transition-colors border border-green-900/50">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            </button>
+        </div>
+    </header>
+
+    <main class="canvas-viewport" id="viewport">
+        
+        <div id="meta-bar" class="meta-bar">
+            <span id="meta-res" class="font-mono">Resolución</span>
+            <span id="meta-gps" class="text-red-300 flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                Sin GPS
+            </span>
+        </div>
+
+        <div class="top-right-menu" id="top-menu">
+            <button id="menu-toggle-btn" class="w-9 h-9 rounded-lg bg-slate-800/90 text-slate-200 flex items-center justify-center border border-slate-600 shadow-lg backdrop-blur">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+            </button>
+            <div id="action-dropdown" class="dropdown-panel">
+                <button id="menu-rotate" class="dropdown-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    Girar 90°
+                </button>
+                <button id="menu-crop" class="dropdown-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" /></svg>
+                    Recortar a la Vista
+                </button>
+                <button id="menu-info" class="dropdown-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Info de Imagen
+                </button>
+            </div>
+        </div>
+
+        <div id="placeholder">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-14 w-14 mb-3 opacity-40 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /></svg>
+            <p class="text-xs uppercase tracking-widest font-semibold text-slate-400">Carga una foto para iniciar</p>
+        </div>
+        
+        <div id="crop-grid">
+            <div class="grid-line-h"></div><div class="grid-line-h"></div>
+            <div class="grid-line-v left-1/3"></div><div class="grid-line-v left-2/3"></div>
+            <div class="grid-border"></div>
+        </div>
+
+        <canvas id="mainCanvas"></canvas>
+        
+        <div class="floating-tools hidden" id="float-tools">
+            <button id="original-btn" class="float-btn" title="Mantener para ver original">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+            </button>
+            <button id="bake-btn" class="float-btn warning" title="Fijar Base (Acumular Filtros)">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+            </button>
+            <button id="reset-btn" class="float-btn danger" title="Limpiar todos los filtros">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            </button>
+        </div>
+    </main>
+
+    <aside class="bottom-panel" id="controls-panel" style="display: none;">
+        
+        <div class="border-b border-slate-700 bg-slate-800/80 shrink-0">
+            <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-4 pt-2">Algoritmos DStretch</div>
+            <div id="previews-grid" class="scroll-container pb-2"></div>
+        </div>
+
+        <div class="border-b border-slate-700 bg-slate-800/40 shrink-0">
+            <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest pl-4 pt-2">Filtros Visuales</div>
+            <div id="visual-filters" class="scroll-container pb-3">
+                <button class="v-filter-btn active" data-filter="Normal">Normal</button>
+                <button class="v-filter-btn" data-filter="Negativo">Negativo</button>
+                <button class="v-filter-btn" data-filter="Cian">Cian</button>
+                <button class="v-filter-btn" data-filter="HDR">HDR</button>
+                <button class="v-filter-btn ultra" data-filter="Ultra">Ultra</button>
+                <button class="v-filter-btn" data-filter="Grises">Grises</button>
+                <button class="v-filter-btn" data-filter="Saturado">Saturado</button>
+            </div>
+        </div>
+
+        <div class="px-5 py-3 flex flex-col gap-3 flex-1">
+            <div class="flex gap-5">
+                <div class="flex-1">
+                    <div class="text-[10px] font-bold uppercase text-slate-400 mb-1">Brillo</div>
+                    <input type="range" id="brightness" min="50" max="250" step="1" value="100">
+                </div>
+                <div class="flex-1">
+                    <div class="text-[10px] font-bold uppercase text-slate-400 mb-1">Contraste</div>
+                    <input type="range" id="contrast" min="50" max="250" step="1" value="100">
+                </div>
+            </div>
+
+            <div class="mt-1">
+                <div class="flex justify-between mb-1">
+                    <span class="text-[10px] font-bold uppercase text-slate-400">Intensidad de Filtro</span>
+                    <span id="int-val" class="text-[10px] text-red-400 font-mono">100%</span>
+                </div>
+                <input type="range" id="intensity" min="0" max="100" step="1" value="100">
+            </div>
+
+            <button id="crop-btn" class="w-full bg-red-600/20 text-red-400 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest active:bg-red-600 active:text-white transition-colors border border-red-500/50 flex items-center justify-center gap-2 mt-auto">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" /></svg>
+                Recortar a la Vista Actual
+            </button>
+        </div>
+    </aside>
+
+    <script>
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const offscreenCanvas = document.createElement('canvas');
+        const offscreenCtx = offscreenCanvas.getContext('2d');
+
+        const viewport = document.getElementById('viewport');
+        const cropGrid = document.getElementById('crop-grid');
+        const upload = document.getElementById('upload');
+        const brightnessInput = document.getElementById('brightness');
+        const contrastInput = document.getElementById('contrast');
+        const intensityInput = document.getElementById('intensity');
+        
+        const floatTools = document.getElementById('float-tools');
+        const originalBtn = document.getElementById('original-btn');
+        const bakeBtn = document.getElementById('bake-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const downloadBtn = document.getElementById('download');
+        const cropBtn = document.getElementById('crop-btn');
+        const loadingOverlay = document.getElementById('loading');
+        const loadingText = document.getElementById('loading-text');
+        const loadingProgress = document.getElementById('loading-progress');
+        
+        const metaBar = document.getElementById('meta-bar');
+        const metaRes = document.getElementById('meta-res');
+        const metaGps = document.getElementById('meta-gps');
+
+        const resModal = document.getElementById('resolution-modal');
+        const btnNative = document.getElementById('btn-native');
+        const btnScale = document.getElementById('btn-scale');
+        
+        const topMenu = document.getElementById('top-menu');
+        const menuToggleBtn = document.getElementById('menu-toggle-btn');
+        const actionDropdown = document.getElementById('action-dropdown');
+        const menuRotate = document.getElementById('menu-rotate');
+        const menuCrop = document.getElementById('menu-crop');
+        const menuInfo = document.getElementById('menu-info');
+        
+        const infoModal = document.getElementById('info-modal');
+        const closeInfo = document.getElementById('close-info');
+
+        let baseImage = null; 
+        let pendingRotatedImg = null; 
+        
+        let currentMode = 'YDS'; 
+        let currentVisualFilter = 'Normal';
+        let cachedModes = {}; 
+        
+        let exifData = { latDD: null, lonDD: null, make: '', model: '', date: '', origW: 0, origH: 0 };
+
+        let scale = 1; let originX = 0; let originY = 0; let isDragging = false;
+        let lastTouchPos = { x: 0, y: 0 }; let showOriginal = false;
+        let initialDistance = null; let initialScale = 1;
+
+        const MODES = {
+            'ORIGINAL': { desc: 'Base', type: 'NONE' },
+            'YDS': { desc: 'Amarillos', mat: [[0.299, 0.587, 0.114], [-0.147, -0.289, 0.436], [0.615, -0.515, -0.100]] },
+            'YBR': { desc: 'Rojos', mat: [[0.299, 0.587, 0.114], [-0.168, -0.331, 0.500], [0.500, -0.418, -0.082]] },
+            'YBK': { desc: 'Negros', mat: [[0.299, 0.587, 0.114], [-0.147, -0.289, 0.436], [-0.615, 0.515, 0.100]] },
+            'LAB': { desc: 'General', type: 'LAB' },
+            'LDS': { desc: 'Amar/LAB', type: 'LAB_MOD1' },
+            'LRE': { desc: 'Rojo/LAB', type: 'LAB_MOD2' }
+        };
+
+        const VISUAL_FILTERS = {
+            'Normal': (i) => '',
+            'Negativo': (i) => `invert(${i}%)`,
+            'Cian': (i) => `sepia(${i*0.5}%) hue-rotate(180deg) saturate(${100 + i}%)`,
+            'HDR': (i) => `contrast(${100 + (i*0.4)}%) saturate(${100 + (i*0.5)}%) brightness(${100 - (i*0.1)}%)`,
+            'Ultra': (i) => `saturate(${100 + (i * 3)}%) contrast(${100 + i}%)`, 
+            'Grises': (i) => `grayscale(${i}%)`,
+            'Saturado': (i) => `saturate(${100 + (i * 2)}%)`
+        };
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = message;
+            toast.classList.add('show');
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        }
+
+        menuToggleBtn.onclick = (e) => { e.stopPropagation(); actionDropdown.classList.toggle('show'); };
+        document.addEventListener('click', (e) => { if(!topMenu.contains(e.target)) actionDropdown.classList.remove('show'); });
+
+        function convertDMSToDD(degrees, minutes, seconds, direction) {
+            let dd = degrees + minutes/60 + seconds/(60*60);
+            if (direction === "S" || direction === "W") dd = dd * -1;
+            return dd;
+        }
+
+        function extractEXIFData(file, callback) {
+            EXIF.getData(file, function() {
+                const orientation = EXIF.getTag(this, "Orientation") || 1;
+                
+                exifData.make = EXIF.getTag(this, "Make") || 'Desconocido';
+                exifData.model = EXIF.getTag(this, "Model") || '';
+                exifData.date = EXIF.getTag(this, "DateTimeOriginal") || 'Fecha no registrada';
+                
+                const lat = EXIF.getTag(this, "GPSLatitude");
+                const latRef = EXIF.getTag(this, "GPSLatitudeRef");
+                const lon = EXIF.getTag(this, "GPSLongitude");
+                const lonRef = EXIF.getTag(this, "GPSLongitudeRef");
+                
+                if (lat && lon && latRef && lonRef) {
+                    exifData.latDD = convertDMSToDD(lat[0], lat[1], lat[2], latRef);
+                    exifData.lonDD = convertDMSToDD(lon[0], lon[1], lon[2], lonRef);
+                    metaGps.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg> ${exifData.latDD.toFixed(4)}, ${exifData.lonDD.toFixed(4)}`;
+                    metaGps.classList.replace('text-slate-500', 'text-green-400');
+                } else {
+                    exifData.latDD = null; exifData.lonDD = null;
+                    metaGps.innerHTML = `Sin GPS`;
+                    metaGps.classList.replace('text-green-400', 'text-slate-500');
+                }
+                callback(orientation);
+            });
+        }
+
+        // --- MOTOR D-STRETCH ---
+        function applyDStretch(imageData, spaceName, sigma) {
+            const modeConfig = MODES[spaceName];
+            if(modeConfig.type === 'NONE') return new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height);
+
+            const data = imageData.data; const len = data.length / 4;
+            let pixels = new Float32Array(len * 3);
+
+            if (modeConfig.type && modeConfig.type.startsWith('LAB')) {
+                for (let i = 0; i < len; i++) {
+                    const lab = rgbToLab(data[i*4]/255, data[i*4+1]/255, data[i*4+2]/255);
+                    if(modeConfig.type === 'LAB_MOD1') { lab[1]*=1.2; lab[2]*=0.8; }
+                    if(modeConfig.type === 'LAB_MOD2') { lab[1]*=1.5; lab[2]*=0.5; }
+                    pixels[i*3] = lab[0]; pixels[i*3+1] = lab[1]; pixels[i*3+2] = lab[2];
+                }
+            } else {
+                const matrix = modeConfig.mat;
+                for (let i = 0; i < len; i++) {
+                    const r = data[i*4]/255, g = data[i*4+1]/255, b = data[i*4+2]/255;
+                    pixels[i*3] = r * matrix[0][0] + g * matrix[0][1] + b * matrix[0][2];
+                    pixels[i*3+1] = r * matrix[1][0] + g * matrix[1][1] + b * matrix[1][2];
+                    pixels[i*3+2] = r * matrix[2][0] + g * matrix[2][1] + b * matrix[2][2];
+                }
+            }
+
+            let means = [0, 0, 0];
+            for (let i = 0; i < len; i++) { means[0] += pixels[i*3]; means[1] += pixels[i*3+1]; means[2] += pixels[i*3+2]; }
+            means = means.map(m => m / len);
+
+            let cov = [[0,0,0],[0,0,0],[0,0,0]];
+            for (let i = 0; i < len; i++) {
+                const d0 = pixels[i*3] - means[0], d1 = pixels[i*3+1] - means[1], d2 = pixels[i*3+2] - means[2];
+                cov[0][0] += d0 * d0; cov[0][1] += d0 * d1; cov[0][2] += d0 * d2;
+                cov[1][1] += d1 * d1; cov[1][2] += d1 * d2; cov[2][2] += d2 * d2;
+            }
+            for(let i=0; i<3; i++) for(let j=i; j<3; j++) { cov[i][j] /= len; cov[j][i] = cov[i][j]; }
+
+            const { values, vectors } = math.eigs(cov);
+            const invSqrtL = values.map(v => 1.0 / Math.sqrt(Math.abs(v) + 1e-7));
+            const transform = math.multiply(math.multiply(vectors, math.diag(invSqrtL)), math.transpose(vectors));
+
+            const result = new Float32Array(len * 3);
+            let mins = [Infinity, Infinity, Infinity], maxs = [-Infinity, -Infinity, -Infinity];
+
+            for (let i = 0; i < len; i++) {
+                const d = [pixels[i*3] - means[0], pixels[i*3+1] - means[1], pixels[i*3+2] - means[2]];
+                const s = math.multiply(transform, d);
+                for(let j=0; j<3; j++) {
+                    const val = s[j] * sigma; result[i*3+j] = val;
+                    if(val < mins[j]) mins[j] = val; if(val > maxs[j]) maxs[j] = val;
+                }
+            }
+
+            const output = new Uint8ClampedArray(data.length);
+            for (let i = 0; i < len; i++) {
+                for (let j = 0; j < 3; j++) {
+                    output[i*4 + j] = ((result[i*3+j] - mins[j]) / (maxs[j] - mins[j] + 1e-7)) * 255;
+                }
+                output[i*4 + 3] = 255;
+            }
+            return new ImageData(output, imageData.width, imageData.height);
+        }
+
+        function rgbToLab(r, g, b) {
+            let x = r * 0.4124 + g * 0.3576 + b * 0.1805; let y = r * 0.2126 + g * 0.7152 + b * 0.0722; let z = r * 0.0193 + g * 0.1192 + b * 0.9505;
+            x /= 0.95047; y /= 1.0; z /= 1.08883;
+            x = x > 0.008856 ? Math.pow(x, 1/3) : (7.787 * x) + 16/116; y = y > 0.008856 ? Math.pow(y, 1/3) : (7.787 * y) + 16/116; z = z > 0.008856 ? Math.pow(z, 1/3) : (7.787 * z) + 16/116;
+            return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
+        }
+
+        async function processImageBase(sourceImage, scaleDown) {
+            loadingOverlay.style.display = 'flex';
+            loadingProgress.innerText = "0%";
+            cachedModes = {};
+            
+            await new Promise(r => setTimeout(r, 50));
+
+            const tempCanvas = document.createElement('canvas');
+            let w = sourceImage.width; let h = sourceImage.height;
+            
+            if (scaleDown) {
+                const MAX_PX = 2048; 
+                if(w > MAX_PX || h > MAX_PX) {
+                    const ratio = Math.min(MAX_PX/w, MAX_PX/h);
+                    w = Math.floor(w * ratio); h = Math.floor(h * ratio);
+                }
+            }
+            
+            tempCanvas.width = w; tempCanvas.height = h;
+            const tCtx = tempCanvas.getContext('2d');
+            tCtx.imageSmoothingEnabled = true; tCtx.imageSmoothingQuality = 'high';
+            tCtx.drawImage(sourceImage, 0, 0, w, h);
+            
+            const rawData = tCtx.getImageData(0, 0, w, h);
+            const modeKeys = Object.keys(MODES);
+            
+            for(let i=0; i<modeKeys.length; i++) {
+                const mode = modeKeys[i];
+                const pct = Math.round(((i) / modeKeys.length) * 100);
+                loadingText.innerText = `GENERANDO MATRIZ ${mode}...`;
+                loadingProgress.innerText = `${pct}%`;
+                
+                await new Promise(r => requestAnimationFrame(() => setTimeout(r, 10)));
+                cachedModes[mode] = applyDStretch(rawData, mode, 1.5);
+            }
+
+            loadingProgress.innerText = `100%`;
+            metaRes.innerText = `${w}x${h}px`;
+            
+            const newBaseImg = new Image();
+            newBaseImg.src = tempCanvas.toDataURL('image/jpeg', 1.0);
+            await new Promise(r => newBaseImg.onload = r);
+            baseImage = newBaseImg;
+
+            await new Promise(r => setTimeout(r, 100));
+            loadingOverlay.style.display = 'none';
+            applyMode(currentMode);
+            
+            resetCamera(); 
+            generatePreviews();
+        }
+
+        function applyMode(mode) {
+            currentMode = mode;
+            if(!cachedModes[mode]) return;
+            offscreenCanvas.width = cachedModes[mode].width;
+            offscreenCanvas.height = cachedModes[mode].height;
+            offscreenCtx.putImageData(cachedModes[mode], 0, 0);
+            render();
+        }
+
+        upload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            extractEXIFData(file, (orientation) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const oCanvas = document.createElement('canvas');
+                        const oCtx = oCanvas.getContext('2d');
+                        let iw = img.width, ih = img.height;
+                        
+                        if ([5, 6, 7, 8].includes(orientation)) { oCanvas.width = ih; oCanvas.height = iw; } 
+                        else { oCanvas.width = iw; oCanvas.height = ih; }
+                        
+                        oCtx.save();
+                        switch (orientation) {
+                            case 2: oCtx.translate(iw, 0); oCtx.scale(-1, 1); break;
+                            case 3: oCtx.translate(iw, ih); oCtx.rotate(Math.PI); break;
+                            case 4: oCtx.translate(0, ih); oCtx.scale(1, -1); break;
+                            case 5: oCtx.rotate(0.5 * Math.PI); oCtx.scale(1, -1); break;
+                            case 6: oCtx.rotate(0.5 * Math.PI); oCtx.translate(0, -ih); break;
+                            case 7: oCtx.rotate(0.5 * Math.PI); oCtx.translate(iw, -ih); oCtx.scale(-1, 1); break;
+                            case 8: oCtx.rotate(-0.5 * Math.PI); oCtx.translate(-iw, 0); break;
+                        }
+                        oCtx.drawImage(img, 0, 0, iw, ih);
+                        oCtx.restore();
+
+                        const rotatedImg = new Image();
+                        rotatedImg.onload = () => {
+                            pendingRotatedImg = rotatedImg;
+                            
+                            exifData.origW = rotatedImg.width;
+                            exifData.origH = rotatedImg.height;
+                            const mp = ((exifData.origW * exifData.origH) / 1000000).toFixed(1);
+                            
+                            document.getElementById('modal-dim').innerText = `${exifData.origW} x ${exifData.origH}px`;
+                            document.getElementById('modal-mp').innerText = `~${mp} Megapíxeles`;
+                            resModal.classList.remove('hidden'); resModal.classList.add('flex');
+                        };
+                        rotatedImg.src = oCanvas.toDataURL('image/jpeg', 1.0);
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        });
+
+        btnScale.onclick = () => { resModal.classList.add('hidden'); resModal.classList.remove('flex'); startInitialProcessing(pendingRotatedImg, true); };
+        btnNative.onclick = () => { resModal.classList.add('hidden'); resModal.classList.remove('flex'); startInitialProcessing(pendingRotatedImg, false); };
+
+        function startInitialProcessing(img, scaleDown) {
+            document.getElementById('placeholder').style.display = 'none';
+            document.getElementById('controls-panel').style.display = 'flex';
+            floatTools.classList.remove('hidden');
+            topMenu.classList.add('visible');
+            downloadBtn.classList.remove('hidden');
+            metaBar.classList.add('visible');
+            
+            resetAllFiltersUI();
+            processImageBase(img, scaleDown);
+        }
+
+        function render() {
+            if (!baseImage || !cachedModes[currentMode]) return;
+            canvas.width = offscreenCanvas.width;
+            canvas.height = offscreenCanvas.height;
+
+            if (showOriginal) {
+                ctx.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.save();
+                const intVal = parseInt(intensityInput.value);
+                let filterStr = VISUAL_FILTERS[currentVisualFilter](intVal);
+                filterStr += ` brightness(${brightnessInput.value}%) contrast(${contrastInput.value}%)`;
+                
+                ctx.filter = filterStr;
+                ctx.drawImage(offscreenCanvas, 0, 0);
+                ctx.restore();
+            }
+            updateCanvasTransform();
+        }
+
+        function updateCanvasTransform() { canvas.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
+
+        // --- GESTOS Y CUADRÍCULA DE RECORTE ---
+        function showGrid() { cropGrid.classList.add('active'); }
+        function hideGrid() { setTimeout(() => { if(!isDragging) cropGrid.classList.remove('active'); }, 500); }
+
+        viewport.addEventListener('touchstart', (e) => {
+            if(!baseImage) return;
+            showGrid();
+            if (e.touches.length === 2) { initialDistance = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); initialScale = scale; } 
+            else if (e.touches.length === 1) { isDragging = true; lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }
+        });
+        viewport.addEventListener('touchmove', (e) => {
+            if(!baseImage) return;
+            if (e.touches.length === 2 && initialDistance) {
+                scale = Math.min(Math.max(0.1, initialScale * (Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY) / initialDistance)), 25);
+                updateCanvasTransform();
+            } else if (e.touches.length === 1 && isDragging) {
+                originX += (e.touches[0].clientX - lastTouchPos.x); originY += (e.touches[0].clientY - lastTouchPos.y);
+                lastTouchPos = { x: e.touches[0].clientX, y: e.touches[0].clientY }; updateCanvasTransform();
+            }
+        });
+        viewport.addEventListener('touchend', () => { initialDistance = null; isDragging = false; hideGrid(); });
+        
+        viewport.addEventListener('mousedown', (e) => { if(!baseImage) return; showGrid(); isDragging = true; lastTouchPos = { x: e.clientX, y: e.clientY }; });
+        window.addEventListener('mousemove', (e) => { if (isDragging) { originX += (e.clientX - lastTouchPos.x); originY += (e.clientY - lastTouchPos.y); lastTouchPos = { x: e.clientX, y: e.clientY }; updateCanvasTransform(); } });
+        window.addEventListener('mouseup', () => { isDragging = false; hideGrid(); });
+        viewport.addEventListener('wheel', (e) => { e.preventDefault(); showGrid(); scale = Math.min(Math.max(0.1, scale * (e.deltaY > 0 ? 0.9 : 1.1)), 25); updateCanvasTransform(); hideGrid(); }, { passive: false });
+
+        const startOriginal = (e) => { e.preventDefault(); showOriginal = true; originalBtn.classList.add('active'); render(); };
+        const endOriginal = (e) => { e.preventDefault(); showOriginal = false; originalBtn.classList.remove('active'); render(); };
+        originalBtn.addEventListener('touchstart', startOriginal); originalBtn.addEventListener('touchend', endOriginal);
+        originalBtn.addEventListener('mousedown', startOriginal); originalBtn.addEventListener('mouseup', endOriginal);
+
+        document.querySelectorAll('.v-filter-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.v-filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active'); currentVisualFilter = btn.dataset.filter; render();
+            };
+        });
+
+        intensityInput.oninput = () => { document.getElementById('int-val').innerText = intensityInput.value + '%'; render(); };
+        [brightnessInput, contrastInput].forEach(inp => inp.oninput = render);
+
+        function resetAllFiltersUI() {
+            currentMode = 'ORIGINAL'; currentVisualFilter = 'Normal';
+            brightnessInput.value = 100; contrastInput.value = 100; intensityInput.value = 100;
+            document.getElementById('int-val').innerText = '100%';
+            
+            document.querySelectorAll('.preview-card').forEach(c => c.classList.remove('active'));
+            if(document.querySelector(`[data-mode="ORIGINAL"]`)) document.querySelector(`[data-mode="ORIGINAL"]`).classList.add('active');
+            
+            document.querySelectorAll('.v-filter-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector(`[data-filter="Normal"]`).classList.add('active');
+        }
+
+        resetBtn.onclick = () => { resetAllFiltersUI(); applyMode('ORIGINAL'); resetCamera(); showToast("Imagen restaurada a la original"); };
+
+        bakeBtn.onclick = () => {
+            if(!baseImage || !cachedModes[currentMode]) return;
+            const bakeCanvas = document.createElement('canvas');
+            bakeCanvas.width = offscreenCanvas.width; bakeCanvas.height = offscreenCanvas.height;
+            const bCtx = bakeCanvas.getContext('2d');
+            
+            const intVal = parseInt(intensityInput.value);
+            let filterStr = VISUAL_FILTERS[currentVisualFilter](intVal);
+            filterStr += ` brightness(${brightnessInput.value}%) contrast(${contrastInput.value}%)`;
+            
+            bCtx.filter = filterStr; bCtx.drawImage(offscreenCanvas, 0, 0);
+            
+            const bakedImg = new Image();
+            bakedImg.onload = () => {
+                showToast("Filtros fijados. Recalculando matrices focalizadas...");
+                resetAllFiltersUI(); processImageBase(bakedImg, false); 
+            };
+            bakedImg.src = bakeCanvas.toDataURL('image/jpeg', 1.0);
+        };
+
+        // --- OPTIMIZACIÓN: ROTACIÓN INSTANTÁNEA (NO RECALCULA PCA) ---
+        menuRotate.onclick = () => {
+            if(!baseImage) return;
+            actionDropdown.classList.remove('show');
+            
+            const rCanvas = document.createElement('canvas');
+            rCanvas.width = baseImage.height; rCanvas.height = baseImage.width;
+            const rCtx = rCanvas.getContext('2d');
+            
+            rCtx.translate(rCanvas.width/2, rCanvas.height/2);
+            rCtx.rotate(90 * Math.PI / 180);
+            rCtx.drawImage(baseImage, -baseImage.width/2, -baseImage.height/2);
+            
+            const rotatedNewImg = new Image();
+            rotatedNewImg.onload = () => {
+                baseImage = rotatedNewImg;
+                
+                // Actualizar info EXIF
+                let tmp = exifData.origW; exifData.origW = exifData.origH; exifData.origH = tmp;
+                metaRes.innerText = `${baseImage.width}x${baseImage.height}px`;
+
+                // Rotar todas las matrices DStretch en caché físicamente (0 segundos)
+                Object.keys(cachedModes).forEach(mode => {
+                    const cImgData = cachedModes[mode];
+                    
+                    const tmpC = document.createElement('canvas');
+                    tmpC.width = cImgData.width; tmpC.height = cImgData.height;
+                    tmpC.getContext('2d').putImageData(cImgData, 0, 0);
+
+                    const rotC = document.createElement('canvas');
+                    rotC.width = cImgData.height; rotC.height = cImgData.width;
+                    const rotCtx = rotC.getContext('2d');
+                    
+                    rotCtx.translate(rotC.width/2, rotC.height/2);
+                    rotCtx.rotate(90 * Math.PI / 180);
+                    rotCtx.drawImage(tmpC, -tmpC.width/2, -tmpC.height/2);
+                    
+                    cachedModes[mode] = rotCtx.getImageData(0, 0, rotC.width, rotC.height);
+                });
+
+                resetCamera();
+                generatePreviews();
+                applyMode(currentMode);
+                showToast("Imagen girada 90° (Proceso instantáneo)");
+            };
+            rotatedNewImg.src = rCanvas.toDataURL('image/jpeg', 1.0);
+        };
+
+        // --- RECORTE (ESTE SÍ RECALCULA PCA OBLIGATORIAMENTE) ---
+        const executeCrop = () => {
+            if(!baseImage) return;
+            const viewRect = viewport.getBoundingClientRect(); const canvasRect = canvas.getBoundingClientRect();
+            
+            const scaleFactor = baseImage.width / canvasRect.width; 
+            const px = Math.max(0, viewRect.left - canvasRect.left) * scaleFactor; 
+            const py = Math.max(0, viewRect.top - canvasRect.top) * scaleFactor;
+            const pw = Math.min(canvasRect.width, viewRect.width) * scaleFactor; 
+            const ph = Math.min(canvasRect.height, viewRect.height) * scaleFactor;
+            
+            if (pw <= 10 || ph <= 10) return;
+
+            const cropCanvas = document.createElement('canvas');
+            cropCanvas.width = pw; cropCanvas.height = ph;
+            const ctxCrop = cropCanvas.getContext('2d');
+            
+            ctxCrop.drawImage(baseImage, px, py, pw, ph, 0, 0, pw, ph);
+            
+            const newCropImg = new Image();
+            newCropImg.onload = () => {
+                showToast("Recorte aplicado: Recalculando colores...");
+                processImageBase(newCropImg, false);
+            };
+            newCropImg.src = cropCanvas.toDataURL('image/jpeg', 1.0);
+        }
+        
+        cropBtn.onclick = executeCrop;
+        menuCrop.onclick = () => { actionDropdown.classList.remove('show'); executeCrop(); };
+
+        menuInfo.onclick = () => {
+            actionDropdown.classList.remove('show');
+            document.getElementById('info-camera').innerText = `${exifData.make} ${exifData.model}`.trim();
+            document.getElementById('info-date').innerText = exifData.date;
+            document.getElementById('info-res').innerText = `${exifData.origW} x ${exifData.origH} px`;
+            
+            if(exifData.latDD && exifData.lonDD) { document.getElementById('info-gps-full').innerText = `${exifData.latDD.toFixed(6)}, ${exifData.lonDD.toFixed(6)}`; } 
+            else { document.getElementById('info-gps-full').innerText = "No registradas en el archivo"; }
+            
+            infoModal.classList.remove('hidden'); infoModal.classList.add('flex');
+        };
+
+        closeInfo.onclick = () => { infoModal.classList.add('hidden'); infoModal.classList.remove('flex'); };
+
+        function resetCamera() {
+            if (!baseImage) return;
+            const vW = viewport.clientWidth; const vH = viewport.clientHeight;
+            const imgW = cachedModes[currentMode] ? cachedModes[currentMode].width : baseImage.width;
+            const imgH = cachedModes[currentMode] ? cachedModes[currentMode].height : baseImage.height;
+            scale = Math.min(vW / imgW, vH / imgH) * 0.95;
+            originX = 0; originY = 0; updateCanvasTransform();
+        }
+        window.onresize = resetCamera;
+
+        function generatePreviews() {
+            const grid = document.getElementById('previews-grid'); grid.innerHTML = '';
+            const size = 65; const thumbCanvas = document.createElement('canvas');
+            thumbCanvas.width = size; thumbCanvas.height = size; const tCtx = thumbCanvas.getContext('2d');
+            
+            const minDim = Math.min(baseImage.width, baseImage.height);
+            const sx = (baseImage.width - minDim) / 2; const sy = (baseImage.height - minDim) / 2;
+            tCtx.drawImage(baseImage, sx, sy, minDim, minDim, 0, 0, size, size);
+            const thumbData = tCtx.getImageData(0, 0, size, size);
+
+            Object.keys(MODES).forEach(mode => {
+                const div = document.createElement('div');
+                div.className = `preview-card flex flex-col items-center ${mode === currentMode ? 'active' : ''}`;
+                div.dataset.mode = mode;
+                
+                const badge = document.createElement('span');
+                badge.className = 'badge'; badge.innerText = MODES[mode].desc;
+
+                const pCanvas = document.createElement('canvas');
+                pCanvas.width = size; pCanvas.height = size; pCanvas.className = "w-16 h-16 object-cover";
+                const pCtx = pCanvas.getContext('2d');
+                pCtx.putImageData(applyDStretch(new ImageData(new Uint8ClampedArray(thumbData.data), size, size), mode, 1.2), 0, 0);
+
+                const label = document.createElement('span');
+                label.className = 'text-[10px] font-bold py-1.5 text-slate-200 tracking-widest'; label.innerText = mode;
+
+                div.onclick = () => {
+                    document.querySelectorAll('.preview-card').forEach(c => c.classList.remove('active'));
+                    div.classList.add('active'); div.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    applyMode(mode);
+                };
+                div.appendChild(badge); div.appendChild(pCanvas); div.appendChild(label); grid.appendChild(div);
+            });
+        }
+
+        downloadBtn.onclick = async () => {
+            if(!baseImage || !cachedModes[currentMode]) return;
+            
+            showToast("Exportando imagen...");
+
+            const exportCanvas = document.createElement('canvas');
+            exportCanvas.width = offscreenCanvas.width; 
+            exportCanvas.height = offscreenCanvas.height;
+            const exportCtx = exportCanvas.getContext('2d');
+
+            const intVal = parseInt(intensityInput.value);
+            let filterStr = VISUAL_FILTERS[currentVisualFilter](intVal);
+            filterStr += ` brightness(${brightnessInput.value}%) contrast(${contrastInput.value}%)`;
+            
+            exportCtx.filter = filterStr;
+            exportCtx.drawImage(offscreenCanvas, 0, 0);
+
+            exportCanvas.toBlob((blob) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.style.display = 'none'; a.href = url;
+                a.download = `DS_${currentMode}_${currentVisualFilter}_${Date.now()}.jpg`;
+                document.body.appendChild(a); a.click();
+                setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+            }, 'image/jpeg', 0.98);
+        };
+    </script>
+</body>
+</html>
