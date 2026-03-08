@@ -2,6 +2,7 @@ import { eigs, multiply, diag, transpose } from 'mathjs';
 import type { ExtendedWorkerRequest, WorkerResponse } from '../types';
 import { MODES, rgbToLab } from '../utils/dstretch';
 import { processAdvancedFilter } from '../utils/advancedFilters';
+import { ADVANCED_FILTERS } from '../utils/filters';
 
 // Constants
 const MAX_PX = 2048;
@@ -196,6 +197,25 @@ ctx.onmessage = async (e: MessageEvent<ExtendedWorkerRequest>) => {
                 baseImageData: imageData, // we don't change the base
                 width: imageData.width,
                 height: imageData.height
+            } as WorkerResponse);
+
+        } else if (req.type === 'GENERATE_ADVANCED_PREVIEWS') {
+            const { previewImageData } = req;
+            const previews: { filterId: string, imageData: ImageData }[] = [];
+
+            for (const filter of ADVANCED_FILTERS) {
+                // Generar con valores por defecto
+                const defaultParams: Record<string, number> = {};
+                for (const p of filter.params) {
+                    defaultParams[p.id] = p.default;
+                }
+                const resImg = processAdvancedFilter(previewImageData, filter.id, defaultParams);
+                previews.push({ filterId: filter.id, imageData: resImg });
+            }
+
+            ctx.postMessage({
+                type: 'ADVANCED_PREVIEWS_SUCCESS',
+                previews
             } as WorkerResponse);
 
         } else if (req.type === 'CROP' || req.type === 'ROTATE_90') {

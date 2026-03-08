@@ -11,6 +11,7 @@ import { ResolutionModal } from './components/ResolutionModal';
 import { ControlsPanel } from './components/ControlsPanel';
 import { FloatingTools } from './components/FloatingTools';
 import { AdvancedFiltersPanel } from './components/AdvancedFiltersPanel';
+import { FreeCrop } from './components/FreeCrop';
 import { Spinner } from './components/Spinner';
 
 import './index.css';
@@ -27,6 +28,7 @@ export default function App() {
   const [pendingRotatedImg, setPendingRotatedImg] = useState<HTMLImageElement | null>(null);
   const [previews, setPreviews] = useState<{ mode: string; dataUrl: string; desc: string }[]>([]);
 
+
   // State: UI
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingText, setLoadingText] = useState('');
@@ -39,6 +41,8 @@ export default function App() {
   // State: Modals
   const [showResModal, setShowResModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
 
   // State: Filters
   const [currentMode, setCurrentMode] = useState('YDS');
@@ -47,10 +51,11 @@ export default function App() {
   const [contrast, setContrast] = useState(100);
   const [intensity, setIntensity] = useState(100);
 
-  // State: Advanced Filters
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  // State: Advanced Filters & Cropping
   const [activeAdvancedFilter, setActiveAdvancedFilter] = useState<string | null>(null);
   const [advancedFilterParams, setAdvancedFilterParams] = useState<Record<string, Record<string, number>>>({});
+  const [advancedPreviews, setAdvancedPreviews] = useState<Record<string, string>>({});
+  const [isCropping, setIsCropping] = useState(false);
 
   // Hooks
   const { exifData, extractExif, setOriginalDimensions } = useExif();
@@ -96,12 +101,29 @@ export default function App() {
 
         if (res.processedImages.length === 1 && res.processedImages[0].modeName === 'ADVANCED') {
           setCurrentMode('ADVANCED');
-          setShowAdvancedFilters(false); // Close panel on apply
         }
 
         setIsProcessing(false);
         setLoadingProgress(100);
         showToast("Imagen procesada correctamente");
+      } else if (res.type === 'ADVANCED_PREVIEWS_SUCCESS') {
+        const previewsObj: Record<string, string> = {};
+
+        // Convert ImageData to canvas to dataURL for UI display
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+
+        if (tempCtx) {
+          res.previews.forEach(p => {
+            tempCanvas.width = p.imageData.width;
+            tempCanvas.height = p.imageData.height;
+            tempCtx.putImageData(p.imageData, 0, 0);
+            previewsObj[p.filterId] = tempCanvas.toDataURL('image/jpeg', 0.6);
+          });
+        }
+
+        setAdvancedPreviews(previewsObj);
+
       } else if (res.type === 'ERROR') {
         console.error("Worker Error:", res.error);
         setIsProcessing(false);
@@ -283,26 +305,56 @@ export default function App() {
   const generatePreviews = (baseImgData: ImageData) => {
     // Generate small previews synchronously to avoid complex worker roundtrips for 65px images
     const size = 65;
-    const thumbCanvas = document.createElement('canvas');
-    thumbCanvas.width = size; thumbCanvas.height = size;
-    const tCtx = thumbCanvas.getContext('2d')!;
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = size;
+    tempCanvas.height = size;
+    const ctx = tempCanvas.getContext('2d')!;
 
-    // Temporary canvas to hold full image to drawImage
-    const fullCanvas = document.createElement('canvas');
-    fullCanvas.width = baseImgData.width; fullCanvas.height = baseImgData.height;
-    fullCanvas.getContext('2d')!.putImageData(baseImgData, 0, 0);
-
+    // Scale down central crop
     const minDim = Math.min(baseImgData.width, baseImgData.height);
     const sx = (baseImgData.width - minDim) / 2;
     const sy = (baseImgData.height - minDim) / 2;
-    tCtx.drawImage(fullCanvas, sx, sy, minDim, minDim, 0, 0, size, size);
 
-    // We could apply the actual dstretch matrices here to the thumbnails if we wanted to be perfectly accurate,
-    // but the original code seems to just use the base thumbnail to show something, or maybe it applied it?
-    // Looking at the original, it applied the cached modes to the thumb... but our cached modes are full res.
-    // Let's just generate the previews from the full res cached modes. Wait, original code did:
-    // ... we don't have cachedModes here yet because setState is async. 
-    // We can do it in a useEffect when cachedModes changes.
+    const tmpOriginal = document.createElement('canvas');
+    tmpOriginal.width = baseImgData.width;
+    tmpOriginal.height = baseImgData.height;
+    tmpOriginal.getContext('2d')!.putImageData(baseImgData, 0, 0);
+
+    ctx.drawImage(tmpOriginal, sx, sy, minDim, minDim, 0, 0, size, size);
+    const previewBaseData = ctx.getImageData(0, 0, size, size);
+
+    const modeKeys = Object.keys(MODES);
+    const generated: { mode: string, dataUrl: string, desc: string }[] = [];
+
+    for (let i = 0; i < modeKeys.length; i++) {
+      const mode = modeKeys[i];
+      let pData = previewBaseData;
+
+      // Very basic sync mock of DStretch for 65px preview to keep UI snappy
+      if (mode !== 'ORIGINAL' && mode !== 'ADVANCED') {
+        // To prevent main thread freezing, we just use the original image in preview 
+        // for now, but in reality we should apply the matrix synchronous for 65x65
+        // The visual difference is small enough that pure DStretch is fast here.
+        // We will re-use the worker or a fast sync mapped function:
+      }
+
+      tempCanvas.width = size;
+      tempCanvas.height = size;
+      ctx.putImageData(pData, 0, 0);
+      generated.push({
+        mode,
+        dataUrl: tempCanvas.toDataURL('image/jpeg', 0.6),
+        desc: MODES[mode]?.desc || ''
+      });
+    }
+
+    setPreviews(generated);
+
+    // Trigger Advanced Previews in Worker
+    workerRef.current?.postMessage({
+      type: 'GENERATE_ADVANCED_PREVIEWS',
+      previewImageData: previewBaseData
+    });
   };
 
   // Generate real previews when cachedModes updates
@@ -487,44 +539,50 @@ export default function App() {
   };
 
   const handleCrop = () => {
-    if (!baseImage || !canvasRef.current || !viewportRef.current) return;
-    setIsMenuOpen(false);
+    setIsCropping(true);
+  };
 
-    const viewRect = viewportRef.current.getBoundingClientRect();
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-
-    // scale in this variable is the zoom level
-    // We need to calculate the actual pixels shown in the viewport relative to the original image dimensions
-    const scaleFactor = baseImage.width / canvasRect.width;
-    const px = Math.max(0, viewRect.left - canvasRect.left) * scaleFactor;
-    const py = Math.max(0, viewRect.top - canvasRect.top) * scaleFactor;
-    const pw = Math.min(canvasRect.width, viewRect.width) * scaleFactor;
-    const ph = Math.min(canvasRect.height, viewRect.height) * scaleFactor;
-
-    if (pw <= 10 || ph <= 10) return;
+  const handleApplyCrop = (cropRect: { x: number, y: number, width: number, height: number }) => {
+    setIsCropping(false);
+    if (!baseImage) return;
 
     setIsProcessing(true);
     setLoadingProgress(0);
-    setLoadingText("RECORTANDO Y RECALCULANDO...");
+    setLoadingText("RECORTANDO Y RE-PROCESANDO...");
 
-    const cropCanvas = document.createElement('canvas');
-    cropCanvas.width = pw; cropCanvas.height = ph;
-    const ctxCrop = cropCanvas.getContext('2d')!;
+    const cw = Math.floor(baseImage.width * cropRect.width);
+    const ch = Math.floor(baseImage.height * cropRect.height);
+    const cx = Math.floor(baseImage.width * cropRect.x);
+    const cy = Math.floor(baseImage.height * cropRect.y);
 
-    const off = document.createElement('canvas');
-    off.width = baseImage.width;
-    off.height = baseImage.height;
-    off.getContext('2d')!.putImageData(baseImage, 0, 0);
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = cw;
+    tempCanvas.height = ch;
+    const ctx = tempCanvas.getContext('2d')!;
 
-    ctxCrop.drawImage(off, px, py, pw, ph, 0, 0, pw, ph);
-    const croppedImageData = ctxCrop.getImageData(0, 0, pw, ph);
+    // Draw original image portion
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, cx, cy, cw, ch, 0, 0, cw, ch);
+      const croppedData = ctx.getImageData(0, 0, cw, ch);
 
-    // After crop we need to re-run the PCA on the new cropped area
-    workerRef.current?.postMessage({
-      type: 'INIT_PROCESS',
-      imageData: croppedImageData,
-      scaleDown: false
-    } as WorkerRequest);
+      // Update dimensions
+      setOriginalDimensions(cw, ch);
+
+      // Send to worker as INIT_PROCESS because we need new matrices for the new crop
+      workerRef.current?.postMessage({
+        type: 'INIT_PROCESS',
+        imageData: croppedData,
+        scaleDown: false
+      } as WorkerRequest);
+    };
+    // We need the original URL source. If we don't have it, we can draw from baseImage ImageData
+    // Since baseImageData is what we have:
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = baseImage.width;
+    offCanvas.height = baseImage.height;
+    offCanvas.getContext('2d')!.putImageData(baseImage, 0, 0);
+    img.src = offCanvas.toDataURL();
   };
 
   const downloadImage = () => {
@@ -591,6 +649,14 @@ export default function App() {
         onApply={handleApplyAdvancedFilter}
         isProcessing={isProcessing}
       />
+
+      {isCropping && canvasRef.current && (
+        <FreeCrop
+          imageUrl={canvasRef.current.toDataURL('image/jpeg', 0.8)}
+          onApply={handleApplyCrop}
+          onCancel={() => setIsCropping(false)}
+        />
+      )}
 
       {isProcessing && <Spinner progress={loadingProgress} message={loadingText} />}
 
@@ -717,7 +783,7 @@ export default function App() {
       </main>
 
       <ControlsPanel
-        isVisible={!!baseImage}
+        isVisible={!!baseImage && !isCropping}
         previews={previews}
         currentMode={currentMode}
         onSelectMode={setCurrentMode}
@@ -730,6 +796,21 @@ export default function App() {
         intensity={intensity}
         setIntensity={setIntensity}
         onCropBtn={handleCrop}
+        advancedPreviews={advancedPreviews}
+        activeAdvancedFilter={activeAdvancedFilter}
+        onSelectAdvancedFilter={setActiveAdvancedFilter}
+        advancedFilterParams={advancedFilterParams}
+        onParamChange={(filterId, paramId, value) => {
+          setAdvancedFilterParams(prev => ({
+            ...prev,
+            [filterId]: {
+              ...(prev[filterId] || {}),
+              [paramId]: value
+            }
+          }));
+        }}
+        onApplyAdvancedFilter={handleApplyAdvancedFilter}
+        isProcessing={isProcessing}
       />
     </>
   );
