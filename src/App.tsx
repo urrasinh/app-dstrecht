@@ -480,6 +480,16 @@ export default function App() {
 
 
 
+  // Build the current CSS filter string (used on the canvas DOM element for cross-browser support
+  // — ctx.filter only works on Safari iOS 17.4+, but CSS filter on <canvas> works on iOS 9+)
+  const cssFilterString = (() => {
+    if (isShowingOriginal) return 'none';
+    const def = VISUAL_FILTERS[currentFilter];
+    if (!def) return 'none';
+    const built = def.build(filterParams[currentFilter] || {});
+    return built || 'none';
+  })();
+
   // Render Canvas
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -498,16 +508,10 @@ export default function App() {
     off.getContext('2d')!.putImageData(currentImageData, 0, 0);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-
-    if (!isShowingOriginal) {
-      const def = VISUAL_FILTERS[currentFilter];
-      const filterStr = def ? def.build(filterParams[currentFilter] || {}) : '';
-      ctx.filter = filterStr;
-    }
-
+    // Visual filter is applied via CSS on the canvas DOM element (cssFilterString).
+    // We do NOT use ctx.filter here to avoid double-application on browsers that support it
+    // and to ensure consistent rendering on iOS Safari < 17.4 (which doesn't support ctx.filter).
     ctx.drawImage(off, 0, 0);
-    ctx.restore();
 
   }, [baseImage, cachedModes, currentMode, isShowingOriginal, currentFilter, filterParams]);
 
@@ -673,8 +677,30 @@ export default function App() {
 
   const downloadImage = () => {
     if (!canvasRef.current || !baseImage) return;
+
+    // Build an off-screen canvas with the visual filter baked in (the on-screen canvas
+    // applies the filter via CSS, which doesn't affect toDataURL output).
+    let dataUrl: string;
+    try {
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = canvasRef.current.width;
+      exportCanvas.height = canvasRef.current.height;
+      const eCtx = exportCanvas.getContext('2d');
+      if (eCtx) {
+        if (!isShowingOriginal && cssFilterString && cssFilterString !== 'none') {
+          eCtx.filter = cssFilterString;
+        }
+        eCtx.drawImage(canvasRef.current, 0, 0);
+        dataUrl = exportCanvas.toDataURL('image/jpeg', 0.95);
+      } else {
+        dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.95);
+      }
+    } catch {
+      dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.95);
+    }
+
     const a = document.createElement('a');
-    a.href = canvasRef.current.toDataURL('image/jpeg', 0.95);
+    a.href = dataUrl;
     a.download = `DStretch_${currentMode}_${Date.now()}.jpg`;
     a.click();
     showToast("Imagen descargada");
@@ -1059,7 +1085,10 @@ export default function App() {
         <canvas
           ref={canvasRef}
           className="shadow-[0_4px_30px_rgba(0,0,0,0.8)] origin-center will-change-transform z-[1] transition-[filter] duration-100 ease-linear"
-          style={{ transform: `translate(${originX}px, ${originY}px) scale(${scale})` }}
+          style={{
+            transform: `translate(${originX}px, ${originY}px) scale(${scale})`,
+            filter: cssFilterString,
+          }}
         />
 
         <FloatingTools
