@@ -37,6 +37,7 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const workerRef = useRef<Worker | null>(null);
+  const stuckTimerRef = useRef<number | null>(null);
 
   // State: Images
   const [baseImage, setBaseImage] = useState<ImageData | null>(null);
@@ -89,7 +90,14 @@ export default function App() {
       if (res.type === 'PROGRESS') {
         setLoadingProgress(res.progress);
         setLoadingText(res.message);
-      } else if (res.type === 'SUCCESS') {
+      } else if (res.type === 'SUCCESS' || res.type === 'ERROR') {
+        // Worker responded — cancel safety timer
+        if (stuckTimerRef.current) {
+          clearTimeout(stuckTimerRef.current);
+          stuckTimerRef.current = null;
+        }
+      }
+      if (res.type === 'SUCCESS') {
         const newCachedModes: Record<string, ImageData> = {};
         res.processedImages.forEach(img => {
           newCachedModes[img.modeName] = img.imageData;
@@ -184,8 +192,10 @@ export default function App() {
         const r = await whoami();
         if (cancelled) return;
         setIsAdmin(r.isAdmin);
-      } catch (e) {
-        console.warn('whoami failed', e);
+      } catch {
+        // Backend may be unreachable, on an old version, or network is offline.
+        // Default to non-admin silently — admin features stay hidden.
+        if (!cancelled) setIsAdmin(false);
       }
     })();
     listenForegroundPush((title, body) => {
@@ -363,18 +373,14 @@ export default function App() {
         return;
       }
 
-      // Safety net: if worker doesn't respond in 180s, unstick the UI
-      const stuckTimer = window.setTimeout(() => {
+      // Safety net: if worker doesn't respond in 180s, unstick the UI.
+      // The main worker onmessage handler clears this timer on SUCCESS/ERROR (see useEffect).
+      if (stuckTimerRef.current) clearTimeout(stuckTimerRef.current);
+      stuckTimerRef.current = window.setTimeout(() => {
         setIsProcessing(false);
         showToast("El procesamiento tardó demasiado. Intenta con 'Optimizar' (2048px).");
+        stuckTimerRef.current = null;
       }, 180000);
-      const handler = (e: MessageEvent<WorkerResponse>) => {
-        if (e.data.type === 'SUCCESS' || e.data.type === 'ERROR') {
-          clearTimeout(stuckTimer);
-          workerRef.current?.removeEventListener('message', handler);
-        }
-      };
-      workerRef.current.addEventListener('message', handler);
 
       workerRef.current.postMessage({
         type: 'INIT_PROCESS',
@@ -509,6 +515,10 @@ export default function App() {
   const resetAllFiltersUI = () => {
     setCurrentMode('ORIGINAL');
     setCurrentFilter('Normal');
+    // Reset all visual filter params back to their defaults
+    const fresh: Record<string, Record<string, number>> = {};
+    for (const id of Object.keys(VISUAL_FILTERS)) fresh[id] = buildFilterDefaults(id);
+    setFilterParams(fresh);
   };
 
   const handleReset = () => {
@@ -848,8 +858,18 @@ export default function App() {
         isOpen={showResModal}
         dim={`${exifData.origW} x ${exifData.origH}px`}
         mp={`~${((exifData.origW * exifData.origH) / 1000000).toFixed(1)} Megapíxeles`}
-        onOptimize={() => pendingRotatedImg && startInitialProcessing(pendingRotatedImg, true)}
-        onNative={() => pendingRotatedImg && startInitialProcessing(pendingRotatedImg, false)}
+        onOptimize={() => {
+          if (!pendingRotatedImg) return;
+          const img = pendingRotatedImg;
+          setPendingRotatedImg(null); // free reference for GC
+          startInitialProcessing(img, true);
+        }}
+        onNative={() => {
+          if (!pendingRotatedImg) return;
+          const img = pendingRotatedImg;
+          setPendingRotatedImg(null);
+          startInitialProcessing(img, false);
+        }}
       />
 
       <InfoModal

@@ -8,15 +8,34 @@ interface BIPEvent extends Event {
 const DISMISS_KEY = 'install-prompt-dismissed-at';
 const COOLDOWN_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 
+function isIOSSafari(): boolean {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.maxTouchPoints > 1 && /Mac/.test(ua));
+    const isStandalone = (window.matchMedia?.('(display-mode: standalone)').matches) ||
+        (navigator as { standalone?: boolean }).standalone === true;
+    return isIOS && !isStandalone;
+}
+
 export const InstallPrompt: React.FC = () => {
     const [event, setEvent] = useState<BIPEvent | null>(null);
     const [visible, setVisible] = useState(false);
+    const [iosMode, setIosMode] = useState(false);
 
     useEffect(() => {
+        const dismissedAt = Number(localStorage.getItem(DISMISS_KEY) || 0);
+        if (Date.now() - dismissedAt < COOLDOWN_MS) return;
+
+        // iOS Safari path: no beforeinstallprompt, show manual instructions
+        if (isIOSSafari()) {
+            setIosMode(true);
+            // Delay so we don't interrupt initial load
+            const t = setTimeout(() => setVisible(true), 4000);
+            return () => clearTimeout(t);
+        }
+
         const handler = (e: Event) => {
             e.preventDefault();
-            const dismissedAt = Number(localStorage.getItem(DISMISS_KEY) || 0);
-            if (Date.now() - dismissedAt < COOLDOWN_MS) return;
             setEvent(e as BIPEvent);
             setVisible(true);
         };
@@ -24,9 +43,12 @@ export const InstallPrompt: React.FC = () => {
         return () => window.removeEventListener('beforeinstallprompt', handler);
     }, []);
 
-    if (!visible || !event) return null;
+    if (!visible) return null;
+    // Browsers that lost the event (eg. user dismissed earlier) and we're not iOS → nothing to show
+    if (!iosMode && !event) return null;
 
     const onInstall = async () => {
+        if (!event) return;
         await event.prompt();
         await event.userChoice;
         setVisible(false);
@@ -46,13 +68,21 @@ export const InstallPrompt: React.FC = () => {
             </div>
             <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-bold text-white">Instala la app</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Úsala como app nativa, sin barra del navegador.</p>
+                {iosMode ? (
+                    <p className="text-xs text-slate-400 mt-1 leading-relaxed">
+                        En Safari, toca <span className="inline-block px-1 rounded bg-slate-800 border border-slate-700 text-slate-200 font-mono">⬆️ Compartir</span> y luego <strong className="text-white">"Añadir a pantalla de inicio"</strong>.
+                    </p>
+                ) : (
+                    <p className="text-xs text-slate-400 mt-0.5">Úsala como app nativa, sin barra del navegador.</p>
+                )}
                 <div className="flex gap-2 mt-3">
-                    <button onClick={onInstall} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold py-2 rounded-lg">
-                        Instalar
-                    </button>
-                    <button onClick={onDismiss} className="px-3 text-xs text-slate-400 hover:text-slate-200">
-                        Después
+                    {!iosMode && (
+                        <button onClick={onInstall} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold py-2 rounded-lg">
+                            Instalar
+                        </button>
+                    )}
+                    <button onClick={onDismiss} className={`${iosMode ? 'flex-1' : 'px-3'} text-xs text-slate-400 hover:text-slate-200 py-2`}>
+                        {iosMode ? 'Entendido' : 'Después'}
                     </button>
                 </div>
             </div>

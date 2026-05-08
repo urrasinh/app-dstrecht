@@ -26,6 +26,8 @@ export const FloatingTools: React.FC<FloatingToolsProps> = ({
                 onPointerDown={onShowOriginalStart}
                 onPointerUp={onShowOriginalEnd}
                 onPointerLeave={onShowOriginalEnd}
+                onPointerCancel={onShowOriginalEnd}
+                onLostPointerCapture={onShowOriginalEnd}
                 className={`w-11 h-11 rounded-full flex justify-center items-center border shadow-lg backdrop-blur-sm transition-all duration-200 ${isShowingOriginal
                         ? 'bg-blue-500 border-blue-400 text-white'
                         : 'bg-slate-800/85 border-slate-600 text-white'
