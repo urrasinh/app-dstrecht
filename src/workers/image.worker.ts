@@ -1,11 +1,11 @@
 import { Matrix, EigenvalueDecomposition } from 'ml-matrix';
-import type { WorkerRequest, WorkerResponse } from '../types';
+import type { WorkerRequest, WorkerResponse, DStretchParams } from '../types';
 import { MODES, rgbToLab } from '../utils/dstretch';
 
 // Constants
 const MAX_PX = 2048;
-const SCALE_GAIN = 15;       // Multiplicative contrast boost (DStretch traditional value)
-const CLIP_PCT = 0.005;      // 0.5% percentile clipping each side before normalization
+const DEFAULT_GAIN = 15;       // Multiplicative contrast boost (DStretch traditional value)
+const DEFAULT_CLIP = 0.005;    // 0.5% percentile clipping each side before normalization
 const EPS = 1e-7;
 
 /**
@@ -21,7 +21,9 @@ const EPS = 1e-7;
  *   5. Apply T to centered pixels with scalar gain: y = (x - mean) · Tᵀ · gain + mean
  *   6. Percentile-clip (top/bottom 0.5%) + min/max normalize to [0, 255]
  */
-function applyDStretch(imageData: ImageData, spaceName: string): ImageData {
+function applyDStretch(imageData: ImageData, spaceName: string, params?: DStretchParams): ImageData {
+    const SCALE_GAIN = params?.gain ?? DEFAULT_GAIN;
+    const CLIP_PCT = Math.min(0.49, Math.max(0, params?.clip ?? DEFAULT_CLIP));
     const modeConfig = MODES[spaceName];
     if (modeConfig.type === 'NONE') {
         return new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height);
@@ -189,7 +191,7 @@ ctx.onmessage = async (e: MessageEvent<WorkerRequest>) => {
 
     try {
         if (req.type === 'INIT_PROCESS') {
-            const { imageData, scaleDown } = req;
+            const { imageData, scaleDown, params } = req;
 
             let w = imageData.width;
             let h = imageData.height;
@@ -214,7 +216,7 @@ ctx.onmessage = async (e: MessageEvent<WorkerRequest>) => {
                     message: `GENERANDO MATRIZ ${mode}...`,
                 } as WorkerResponse);
 
-                const newImageData = applyDStretch(targetImageData, mode);
+                const newImageData = applyDStretch(targetImageData, mode, params);
                 processedImages.push({ modeName: mode, imageData: newImageData });
             }
 
@@ -224,6 +226,18 @@ ctx.onmessage = async (e: MessageEvent<WorkerRequest>) => {
                 baseImageData: targetImageData,
                 width: w,
                 height: h,
+            } as WorkerResponse);
+
+        } else if (req.type === 'PROCESS_SINGLE') {
+            // Re-process a single mode with new params (used when user adjusts gain/clip)
+            const { imageData, mode, params } = req;
+            const newImageData = applyDStretch(imageData, mode, params);
+            ctx.postMessage({
+                type: 'SUCCESS',
+                processedImages: [{ modeName: mode, imageData: newImageData }],
+                baseImageData: imageData,
+                width: imageData.width,
+                height: imageData.height,
             } as WorkerResponse);
 
         } else if (req.type === 'CROP' || req.type === 'ROTATE_90') {

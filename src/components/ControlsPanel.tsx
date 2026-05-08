@@ -13,6 +13,13 @@ interface ControlsPanelProps {
     filterParams: Record<string, Record<string, number>>;
     onFilterParamChange: (filterId: string, paramId: string, value: number) => void;
     onResetFilterParams: (filterId: string) => void;
+
+    // DStretch advanced params
+    dstretchGain: number;
+    dstretchClip: number;
+    onDstretchParamChange: (gain: number, clip: number) => void;
+    onResetDstretchParams: () => void;
+    isReprocessing: boolean;
 }
 
 type PanelState = 'compact' | 'full';
@@ -22,7 +29,10 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
     previews, currentMode, onSelectMode,
     currentFilter, onSelectFilter,
     filterParams, onFilterParamChange, onResetFilterParams,
+    dstretchGain, dstretchClip, onDstretchParamChange, onResetDstretchParams, isReprocessing,
 }) => {
+    const [showDstretchAdv, setShowDstretchAdv] = useState(false);
+    const dstretchAdjusted = dstretchGain !== 15 || Math.abs(dstretchClip - 0.005) > 1e-6;
     const [panelState, setPanelState] = useState<PanelState>('compact');
     const dragStartY = useRef<number | null>(null);
     const dragStartState = useRef<PanelState>('compact');
@@ -110,6 +120,77 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
                         );
                     })}
                 </div>
+
+                {/* DStretch advanced parameters toggle */}
+                <div className="px-4 pt-1 pb-1">
+                    <button
+                        onClick={() => setShowDstretchAdv(v => !v)}
+                        className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors ${showDstretchAdv || dstretchAdjusted ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-3 w-3 transition-transform ${showDstretchAdv ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                        Ajustes avanzados DStretch
+                        {dstretchAdjusted && <span className="px-1.5 py-px rounded bg-blue-500/20 text-blue-300 text-[8px]">modificado</span>}
+                        {isReprocessing && <span className="w-2 h-2 rounded-full border border-blue-400 border-t-transparent animate-spin"></span>}
+                    </button>
+                </div>
+
+                {showDstretchAdv && (
+                    <div className="bg-slate-950/40 border-t border-slate-800/60 px-4 py-3 flex flex-col gap-3 animate-in fade-in duration-200">
+                        <div className="flex justify-between items-center -mb-1">
+                            <div className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">Modo: {currentMode}</div>
+                            <button
+                                onClick={onResetDstretchParams}
+                                disabled={!dstretchAdjusted || isReprocessing}
+                                className="text-[9px] text-slate-300 hover:text-blue-400 uppercase tracking-wider font-bold px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                Reset
+                            </button>
+                        </div>
+
+                        {/* Intensidad (gain) */}
+                        <div className="space-y-1">
+                            <div className="flex justify-between items-center">
+                                <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider">Intensidad</label>
+                                <span className="text-[10px] font-mono bg-slate-900 px-2 py-0.5 rounded text-blue-400 border border-slate-800">{dstretchGain.toFixed(1)}</span>
+                            </div>
+                            <input
+                                type="range"
+                                min={1} max={50} step={0.5}
+                                value={dstretchGain}
+                                onChange={e => onDstretchParamChange(parseFloat(e.target.value), dstretchClip)}
+                                className="w-full h-2 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-slate-50 [&::-webkit-slider-thumb]:shadow-lg"
+                                style={{
+                                    background: `linear-gradient(to right, rgb(59 130 246) 0%, rgb(59 130 246) ${((dstretchGain - 1) / 49) * 100}%, rgb(51 65 85) ${((dstretchGain - 1) / 49) * 100}%, rgb(51 65 85) 100%)`
+                                }}
+                            />
+                            <p className="text-[9px] text-slate-500 leading-tight">Cuánto se amplifica el contraste cromático tras la decorrelación.</p>
+                        </div>
+
+                        {/* Recorte (clip) */}
+                        <div className="space-y-1">
+                            <div className="flex justify-between items-center">
+                                <label className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider">Recorte percentil</label>
+                                <span className="text-[10px] font-mono bg-slate-900 px-2 py-0.5 rounded text-blue-400 border border-slate-800">{(dstretchClip * 100).toFixed(2)}%</span>
+                            </div>
+                            <input
+                                type="range"
+                                min={0} max={5} step={0.05}
+                                value={dstretchClip * 100}
+                                onChange={e => onDstretchParamChange(dstretchGain, parseFloat(e.target.value) / 100)}
+                                className="w-full h-2 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-blue-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-slate-50 [&::-webkit-slider-thumb]:shadow-lg"
+                                style={{
+                                    background: `linear-gradient(to right, rgb(59 130 246) 0%, rgb(59 130 246) ${(dstretchClip * 100 / 5) * 100}%, rgb(51 65 85) ${(dstretchClip * 100 / 5) * 100}%, rgb(51 65 85) 100%)`
+                                }}
+                            />
+                            <p className="text-[9px] text-slate-500 leading-tight">Recorta los outliers extremos antes de normalizar (más recorte = más contraste local).</p>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Visual Filters */}

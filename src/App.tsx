@@ -37,6 +37,14 @@ export default function App() {
   const [hasDownloaded, setHasDownloaded] = useState<boolean>(() => !!localStorage.getItem('has-downloaded'));
   const [donateBubbleVisible, setDonateBubbleVisible] = useState(false);
   const donateHideTimerRef = useRef<number | null>(null);
+
+  // DStretch advanced params (gain = sigma, clip = percentile clip)
+  const DEFAULT_GAIN = 15;
+  const DEFAULT_CLIP = 0.005;
+  const [dstretchGain, setDstretchGain] = useState(DEFAULT_GAIN);
+  const [dstretchClip, setDstretchClip] = useState(DEFAULT_CLIP);
+  const [isReprocessing, setIsReprocessing] = useState(false);
+  const dstretchDebounceRef = useRef<number | null>(null);
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -100,6 +108,7 @@ export default function App() {
           clearTimeout(stuckTimerRef.current);
           stuckTimerRef.current = null;
         }
+        setIsReprocessing(false);
       }
       if (res.type === 'SUCCESS') {
         const newCachedModes: Record<string, ImageData> = {};
@@ -206,6 +215,45 @@ export default function App() {
     if (showWelcome || showTutorial) return;
     flashDonateBubble();
   }, [baseImage, showWelcome, showTutorial, flashDonateBubble]);
+
+  // Re-process current DStretch mode with new params (debounced ~250ms)
+  const onDstretchParamChange = useCallback((gain: number, clip: number) => {
+    setDstretchGain(gain);
+    setDstretchClip(clip);
+    if (dstretchDebounceRef.current) clearTimeout(dstretchDebounceRef.current);
+    dstretchDebounceRef.current = window.setTimeout(() => {
+      if (!baseImage || !workerRef.current) return;
+      if (currentMode === 'ORIGINAL' || currentMode === 'ADVANCED') return;
+      setIsReprocessing(true);
+      workerRef.current.postMessage({
+        type: 'PROCESS_SINGLE',
+        imageData: baseImage,
+        mode: currentMode,
+        params: { gain, clip },
+      } as WorkerRequest);
+      dstretchDebounceRef.current = null;
+    }, 250);
+  }, [baseImage, currentMode]);
+
+  // Reset DStretch params and re-process
+  const onResetDstretchParams = useCallback(() => {
+    onDstretchParamChange(DEFAULT_GAIN, DEFAULT_CLIP);
+  }, [onDstretchParamChange]);
+
+  // When user switches mode, re-apply current params if they differ from defaults
+  useEffect(() => {
+    if (!baseImage || !workerRef.current) return;
+    if (currentMode === 'ORIGINAL' || currentMode === 'ADVANCED') return;
+    if (dstretchGain === DEFAULT_GAIN && Math.abs(dstretchClip - DEFAULT_CLIP) < 1e-9) return;
+    setIsReprocessing(true);
+    workerRef.current.postMessage({
+      type: 'PROCESS_SINGLE',
+      imageData: baseImage,
+      mode: currentMode,
+      params: { gain: dstretchGain, clip: dstretchClip },
+    } as WorkerRequest);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMode]);
 
   // Detect admin role; push token registration is opt-in via PushPermissionBanner
   useEffect(() => {
@@ -547,6 +595,9 @@ export default function App() {
     const fresh: Record<string, Record<string, number>> = {};
     for (const id of Object.keys(VISUAL_FILTERS)) fresh[id] = buildFilterDefaults(id);
     setFilterParams(fresh);
+    // Reset DStretch advanced params
+    setDstretchGain(DEFAULT_GAIN);
+    setDstretchClip(DEFAULT_CLIP);
   };
 
   const handleReset = () => {
@@ -1156,6 +1207,11 @@ export default function App() {
         onResetFilterParams={(filterId) => {
           setFilterParams(prev => ({ ...prev, [filterId]: buildFilterDefaults(filterId) }));
         }}
+        dstretchGain={dstretchGain}
+        dstretchClip={dstretchClip}
+        onDstretchParamChange={onDstretchParamChange}
+        onResetDstretchParams={onResetDstretchParams}
+        isReprocessing={isReprocessing}
       />
     </>
   );

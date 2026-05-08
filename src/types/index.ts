@@ -21,10 +21,25 @@ export type VisualFilterType = 'Normal' | 'Negativo' | 'Cian' | 'HDR' | 'Ultra' 
 // Worker Messages
 export type WorkerRequestMessageType = 'INIT_PROCESS' | 'CROP' | 'ROTATE_90';
 
+export interface DStretchParams {
+    /** Multiplicative whitening gain (DStretch traditional sigma). Default 15. */
+    gain: number;
+    /** Top/bottom percentile clipping per channel before normalization. Default 0.005 = 0.5%. */
+    clip: number;
+}
+
 export interface WorkerInitRequest {
     type: 'INIT_PROCESS';
     imageData: ImageData; // Or we can pass an array buffer later
     scaleDown: boolean;
+    params?: DStretchParams;
+}
+
+export interface WorkerSingleRequest {
+    type: 'PROCESS_SINGLE';
+    imageData: ImageData;
+    mode: string;
+    params: DStretchParams;
 }
 
 export interface WorkerCropRequest {
@@ -36,7 +51,7 @@ export interface WorkerRotateRequest {
     type: 'ROTATE_90';
 }
 
-export type WorkerRequest = WorkerInitRequest | WorkerCropRequest | WorkerRotateRequest;
+export type WorkerRequest = WorkerInitRequest | WorkerSingleRequest | WorkerCropRequest | WorkerRotateRequest;
 
 export type WorkerStatusMessageType = 'PROGRESS' | 'SUCCESS' | 'ERROR';
 
