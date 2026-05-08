@@ -3,7 +3,7 @@ import { useExif } from './hooks/useExif';
 import { useGestures } from './hooks/useGestures';
 import { useUploadSync } from './hooks/useUploadSync';
 import { useAuth } from './contexts/AuthContext';
-import { logout, listenForegroundPush } from './firebase';
+import { logout, listenForegroundPush, getUserEmail } from './firebase';
 import { whoami } from './utils/adminApi';
 import { MODES, VISUAL_FILTERS, buildFilterDefaults } from './utils/dstretch';
 import type { WorkerRequest, WorkerResponse } from './types';
@@ -310,7 +310,7 @@ export default function App() {
       if (user) {
         try {
           await uploadSync.queue({
-            userEmail: user.email || 'unknown',
+            userEmail: getUserEmail(user) || 'unknown',
             fileName: file.name,
             mimeType: file.type || 'image/jpeg',
             fileBlob: file,
@@ -1139,8 +1139,9 @@ export default function App() {
                   <span className="text-base leading-none">☕</span>
                   Apoyar el proyecto
                 </button>
-                <div className="px-4 py-2 text-[10px] text-slate-500 border-b border-slate-800 truncate" title={user?.email ?? ''}>
-                  {user?.email}
+                <div className="px-4 py-2 text-[10px] text-slate-500 border-b border-slate-800 truncate" title={getUserEmail(user)}>
+                  {getUserEmail(user)}
+                  {user?.isAnonymous && <span className="ml-1 text-amber-500/80">(invitado)</span>}
                 </div>
                 <button onClick={async () => { setIsMenuOpen(false); await logout(); }} className="px-4 py-3 text-red-400 text-sm font-semibold flex items-center gap-3 hover:bg-slate-800 active:bg-red-900 transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>

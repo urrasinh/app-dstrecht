@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { loginWithGoogle, sendEmailLink, isEmailLink, completeEmailLinkSignIn, getPendingEmail } from '../firebase';
+import { loginWithGoogle, sendEmailLink, isEmailLink, completeEmailLinkSignIn, getPendingEmail, loginAsGuestWithEmail } from '../firebase';
 import { TermsModal } from './TermsModal';
 
 type View = 'idle' | 'sent' | 'finishing-link' | 'need-email-confirm';
@@ -40,6 +40,19 @@ export const AuthGate: React.FC = () => {
         } catch (err: any) {
             setError(translateError(err.code) || err.message || 'Error');
         } finally {
+            setBusy(false);
+        }
+    };
+
+    const handleQuickEntry = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setBusy(true);
+        setError(null);
+        try {
+            await loginAsGuestWithEmail(email.trim());
+            // onAuthStateChanged will move us out of AuthGate
+        } catch (err: any) {
+            setError(translateError(err.code) || err.message || 'Error');
             setBusy(false);
         }
     };
@@ -152,7 +165,7 @@ export const AuthGate: React.FC = () => {
                             <div className="flex-1 h-px bg-slate-800"></div>
                         </div>
 
-                        <form onSubmit={handleSendLink} className="flex flex-col gap-3">
+                        <form onSubmit={handleQuickEntry} className="flex flex-col gap-3">
                             <input
                                 type="email"
                                 value={email}
@@ -174,14 +187,22 @@ export const AuthGate: React.FC = () => {
                                 {busy ? '...' : (
                                     <>
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 9v.906a2.25 2.25 0 01-1.183 1.981l-6.478 3.488M2.25 9v.906a2.25 2.25 0 001.183 1.981l6.478 3.488m8.839 2.51l-4.66-2.51m0 0l-1.023-.55a2.25 2.25 0 00-2.134 0l-1.022.55m0 0l-4.661 2.51m16.5 1.615a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                                         </svg>
-                                        Enviarme un enlace
+                                        Entrar
                                     </>
                                 )}
                             </button>
+                            <button
+                                type="button"
+                                onClick={(e) => handleSendLink(e as unknown as React.FormEvent)}
+                                disabled={busy || !email}
+                                className="text-[11px] text-slate-400 hover:text-emerald-400 underline underline-offset-2 disabled:opacity-50"
+                            >
+                                ¿Prefieres verificar tu correo? Recibe un enlace
+                            </button>
                             <p className="text-[10px] text-slate-500 text-center leading-snug">
-                                Sin contraseñas. Te enviamos un enlace al correo y entras con un toque.
+                                Sin contraseñas, sin verificación. Tus subidas quedan etiquetadas con el correo declarado.
                             </p>
                         </form>
                     </>
