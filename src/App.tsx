@@ -195,8 +195,18 @@ export default function App() {
   }, [user]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const inputEl = e.target;
+    const file = inputEl.files?.[0];
+    // Allow re-selecting the same file by resetting the input value immediately
+    inputEl.value = '';
     if (!file) return;
+
+    // Safety net: if anything hangs, force-clear processing state after 60s
+    let safetyTimer: number | undefined = window.setTimeout(() => {
+      setIsProcessing(false);
+      showToast("La subida tardó demasiado. Intenta de nuevo.");
+    }, 60000);
+    const clearSafety = () => { if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = undefined; } };
 
     setIsProcessing(true);
     setLoadingProgress(0);
@@ -238,11 +248,14 @@ export default function App() {
       const reader = new FileReader();
 
       reader.onerror = () => {
-        throw new Error("No se pudo leer el archivo físico.");
+        clearSafety();
+        setIsProcessing(false);
+        showToast("No se pudo leer el archivo. Intenta otra vez.");
       };
 
       reader.onload = (event) => {
         if (!event.target?.result) {
+          clearSafety();
           setIsProcessing(false);
           showToast("Error leyendo archivo");
           return;
@@ -250,6 +263,7 @@ export default function App() {
 
         const img = new Image();
         img.onerror = () => {
+          clearSafety();
           setIsProcessing(false);
           showToast("Formato de imagen inválido o no soportado nativamente por tu navegador.");
         };
@@ -281,18 +295,25 @@ export default function App() {
 
             const rotatedImg = new Image();
             rotatedImg.onload = () => {
+              clearSafety();
               setPendingRotatedImg(rotatedImg);
               setOriginalDimensions(rotatedImg.width, rotatedImg.height);
               setIsProcessing(false);
               setShowResModal(true);
             };
+            rotatedImg.onerror = () => {
+              clearSafety();
+              setIsProcessing(false);
+              showToast("Error generando vista previa de la imagen.");
+            };
 
-            // Generate highest quality JPEG to pass to canvas to strip away exotic properties 
+            // Generate highest quality JPEG to pass to canvas to strip away exotic properties
             // from some WEBP/HEIC/RAWs that Safari/Chrome might struggle with in Canvas get/putImageData
             rotatedImg.src = oCanvas.toDataURL('image/jpeg', 1.0);
 
           } catch (canvasErr) {
             console.error("Canvas manipulation failed", canvasErr);
+            clearSafety();
             setIsProcessing(false);
             showToast("Error procesando imagen para web.");
           }
@@ -304,6 +325,7 @@ export default function App() {
 
     } catch (error) {
       console.error("Upload handler total failure", error);
+      clearSafety();
       setIsProcessing(false);
       showToast("Error de subida inesperado.");
     }
@@ -324,21 +346,46 @@ export default function App() {
     setIsProcessing(true);
     setLoadingProgress(0);
 
-    // Convert Image to ImageData
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = img.width;
-    tempCanvas.height = img.height;
-    const tCtx = tempCanvas.getContext('2d')!;
-    tCtx.imageSmoothingEnabled = true;
-    tCtx.imageSmoothingQuality = 'high';
-    tCtx.drawImage(img, 0, 0, img.width, img.height);
-    const imageData = tCtx.getImageData(0, 0, img.width, img.height);
+    try {
+      // Convert Image to ImageData
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = img.width;
+      tempCanvas.height = img.height;
+      const tCtx = tempCanvas.getContext('2d')!;
+      tCtx.imageSmoothingEnabled = true;
+      tCtx.imageSmoothingQuality = 'high';
+      tCtx.drawImage(img, 0, 0, img.width, img.height);
+      const imageData = tCtx.getImageData(0, 0, img.width, img.height);
 
-    workerRef.current?.postMessage({
-      type: 'INIT_PROCESS',
-      imageData,
-      scaleDown
-    } as WorkerRequest);
+      if (!workerRef.current) {
+        setIsProcessing(false);
+        showToast("Worker no inicializado. Recarga la página.");
+        return;
+      }
+
+      // Safety net: if worker doesn't respond in 180s, unstick the UI
+      const stuckTimer = window.setTimeout(() => {
+        setIsProcessing(false);
+        showToast("El procesamiento tardó demasiado. Intenta con 'Optimizar' (2048px).");
+      }, 180000);
+      const handler = (e: MessageEvent<WorkerResponse>) => {
+        if (e.data.type === 'SUCCESS' || e.data.type === 'ERROR') {
+          clearTimeout(stuckTimer);
+          workerRef.current?.removeEventListener('message', handler);
+        }
+      };
+      workerRef.current.addEventListener('message', handler);
+
+      workerRef.current.postMessage({
+        type: 'INIT_PROCESS',
+        imageData,
+        scaleDown
+      } as WorkerRequest);
+    } catch (err) {
+      console.error("startInitialProcessing failed", err);
+      setIsProcessing(false);
+      showToast("Imagen demasiado grande o memoria insuficiente. Intenta con 'Optimizar'.");
+    }
   };
 
   const generatePreviews = (baseImgData: ImageData) => {
