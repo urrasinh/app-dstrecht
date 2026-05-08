@@ -3,8 +3,9 @@ import {
     getAuth,
     GoogleAuthProvider,
     signInWithPopup,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
+    sendSignInLinkToEmail,
+    isSignInWithEmailLink,
+    signInWithEmailLink,
     signOut,
     onAuthStateChanged,
     type User,
@@ -29,12 +30,41 @@ export async function loginWithGoogle() {
     return signInWithPopup(auth, googleProvider);
 }
 
-export async function loginWithEmail(email: string, password: string) {
-    return signInWithEmailAndPassword(auth, email, password);
+const PENDING_EMAIL_KEY = 'auth-pending-email';
+
+export async function sendEmailLink(email: string): Promise<void> {
+    const url = window.location.origin + window.location.pathname;
+    await sendSignInLinkToEmail(auth, email, {
+        url,
+        handleCodeInApp: true,
+    });
+    localStorage.setItem(PENDING_EMAIL_KEY, email);
 }
 
-export async function registerWithEmail(email: string, password: string) {
-    return createUserWithEmailAndPassword(auth, email, password);
+/** Returns true if the current URL is a Firebase email-link sign-in URL. */
+export function isEmailLink(url = window.location.href): boolean {
+    return isSignInWithEmailLink(auth, url);
+}
+
+/**
+ * Completes sign-in from an email link. If we don't have the email saved
+ * (the user opened the link on a different device), pass it explicitly.
+ */
+export async function completeEmailLinkSignIn(email?: string): Promise<void> {
+    const link = window.location.href;
+    if (!isSignInWithEmailLink(auth, link)) return;
+    const stored = email ?? localStorage.getItem(PENDING_EMAIL_KEY) ?? '';
+    if (!stored) throw new Error('Necesitamos el correo con el que solicitaste el enlace.');
+    await signInWithEmailLink(auth, stored, link);
+    localStorage.removeItem(PENDING_EMAIL_KEY);
+    // Clean the URL so a refresh doesn't re-trigger
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+        window.history.replaceState({}, '', window.location.pathname);
+    }
+}
+
+export function getPendingEmail(): string | null {
+    return localStorage.getItem(PENDING_EMAIL_KEY);
 }
 
 export async function logout() {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useExif } from './hooks/useExif';
 import { useGestures } from './hooks/useGestures';
 import { useUploadSync } from './hooks/useUploadSync';
@@ -22,6 +22,7 @@ import { PushPermissionBanner } from './components/PushPermissionBanner';
 import { Tutorial, type TutorialStep } from './components/Tutorial';
 import { loadDemoImage } from './utils/demoImage';
 import { DonateModal } from './components/DonateModal';
+import { FirstTimeWelcome } from './components/FirstTimeWelcome';
 
 import './index.css';
 
@@ -30,9 +31,12 @@ export default function App() {
   const uploadSync = useUploadSync();
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState<'editor' | 'feed' | 'users'>('editor');
+  const [showWelcome, setShowWelcome] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showDonate, setShowDonate] = useState(false);
   const [hasDownloaded, setHasDownloaded] = useState<boolean>(() => !!localStorage.getItem('has-downloaded'));
+  const [donateBubbleVisible, setDonateBubbleVisible] = useState(false);
+  const donateHideTimerRef = useRef<number | null>(null);
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -174,14 +178,34 @@ export default function App() {
     setTimeout(() => setToastMsg(''), 3000);
   };
 
-  // First-login tutorial trigger
+  // First-login welcome → tutorial trigger
   useEffect(() => {
     if (!user) return;
     if (localStorage.getItem('tutorial-completed-v1')) return;
-    // small delay so the layout is ready
-    const t = setTimeout(() => setShowTutorial(true), 600);
+    const welcomeDone = localStorage.getItem('welcome-completed-v1');
+    const t = setTimeout(() => {
+      if (welcomeDone) setShowTutorial(true);
+      else setShowWelcome(true);
+    }, 600);
     return () => clearTimeout(t);
   }, [user]);
+
+  // Pop the donate bubble for 30s
+  const flashDonateBubble = useCallback(() => {
+    setDonateBubbleVisible(true);
+    if (donateHideTimerRef.current) clearTimeout(donateHideTimerRef.current);
+    donateHideTimerRef.current = window.setTimeout(() => {
+      setDonateBubbleVisible(false);
+      donateHideTimerRef.current = null;
+    }, 30000);
+  }, []);
+
+  // Show donate bubble for 30s when first image loads (defer if tutorial/welcome covers screen)
+  useEffect(() => {
+    if (!baseImage) return;
+    if (showWelcome || showTutorial) return;
+    flashDonateBubble();
+  }, [baseImage, showWelcome, showTutorial, flashDonateBubble]);
 
   // Detect admin role; push token registration is opt-in via PushPermissionBanner
   useEffect(() => {
@@ -708,6 +732,7 @@ export default function App() {
       localStorage.setItem('has-downloaded', '1');
       setHasDownloaded(true);
     }
+    flashDonateBubble();
   }
 
 
@@ -853,6 +878,12 @@ export default function App() {
     setShowTutorial(false);
   };
 
+  const handleWelcomeContinue = () => {
+    localStorage.setItem('welcome-completed-v1', String(Date.now()));
+    setShowWelcome(false);
+    setShowTutorial(true);
+  };
+
   if (authLoading) {
     return (
       <div className="fixed inset-0 bg-slate-950 flex items-center justify-center">
@@ -864,6 +895,7 @@ export default function App() {
 
   return (
     <>
+      <FirstTimeWelcome isOpen={showWelcome} onContinue={handleWelcomeContinue} />
       <Tutorial
         isOpen={showTutorial}
         steps={tutorialSteps}
@@ -950,7 +982,9 @@ export default function App() {
           {baseImage && (
             <>
               <button onClick={downloadImage} className="text-emerald-400 bg-emerald-950/50 px-3 py-1.5 rounded-lg active:bg-emerald-900/80 transition-colors border border-emerald-900/50 flex items-center gap-1.5 text-sm font-semibold">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4-4m4 4V4" /></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v13m0 0l-5-5m5 5l5-5M5 21h14" />
+                </svg>
                 Descargar
               </button>
             </>
@@ -992,7 +1026,7 @@ export default function App() {
       >
         {/* Top left Meta Bar + Donate button (side-by-side) */}
         {baseImage && (
-          <div className="absolute top-2.5 left-2.5 z-15 flex items-stretch gap-2">
+          <div className="absolute top-2.5 left-2.5 z-15 flex flex-col items-start gap-2">
             <div className="bg-slate-900/75 backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] text-slate-400 flex items-center gap-3 border border-slate-700 shadow-lg pointer-events-none">
               <span className="font-mono">{baseImage.width}x{baseImage.height}px</span>
               <span className={`flex items-center gap-1 ${exifData.latDD ? 'text-emerald-400' : 'text-slate-500'}`}>
@@ -1007,9 +1041,13 @@ export default function App() {
               data-tutorial="donate"
               onClick={() => setShowDonate(true)}
               title="Regálame un café"
-              className={`backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] flex items-center gap-1.5 border shadow-lg transition-colors uppercase tracking-wider font-semibold ${hasDownloaded
-                ? 'bg-amber-500/95 hover:bg-amber-500 text-slate-900 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.5)] animate-pulse'
-                : 'bg-slate-900/75 hover:bg-slate-800 text-slate-400 border-slate-700'}`}
+              aria-hidden={!donateBubbleVisible}
+              tabIndex={donateBubbleVisible ? 0 : -1}
+              className={`backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] flex items-center gap-1.5 border shadow-lg uppercase tracking-wider font-semibold transition-all duration-300
+                ${donateBubbleVisible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-1 pointer-events-none'}
+                ${hasDownloaded
+                  ? 'bg-amber-500/95 hover:bg-amber-500 text-slate-900 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
+                  : 'bg-slate-900/75 hover:bg-slate-800 text-slate-400 border-slate-700'}`}
             >
               <span className="text-sm leading-none">☕</span>
               <span>Regálame un café</span>
