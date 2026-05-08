@@ -2,23 +2,123 @@ import type { DStretchModeConfig } from '../types';
 
 export const MODES: Record<string, DStretchModeConfig> = {
     'ORIGINAL': { desc: 'Base', type: 'NONE' },
+    'AUTO': { desc: 'PCA RGB Adaptativo', type: 'MATRIX', mat: [[1, 0, 0], [0, 1, 0], [0, 0, 1]] },
     'YDS': { desc: 'Amarillos', type: 'MATRIX', mat: [[0.299, 0.587, 0.114], [-0.147, -0.289, 0.436], [0.615, -0.515, -0.100]] },
     'YBR': { desc: 'Rojos', type: 'MATRIX', mat: [[0.299, 0.587, 0.114], [-0.168, -0.331, 0.500], [0.500, -0.418, -0.082]] },
     'YBK': { desc: 'Negros', type: 'MATRIX', mat: [[0.299, 0.587, 0.114], [-0.147, -0.289, 0.436], [-0.615, 0.515, 0.100]] },
-    'LAB': { desc: 'General', type: 'LAB' },
+    'YGN': { desc: 'Verdes/Líquen', type: 'MATRIX', mat: [[0.299, 0.587, 0.114], [-0.500, 0.418, 0.082], [0.147, 0.289, -0.436]] },
+    'LAB': { desc: 'LAB General', type: 'LAB' },
     'LDS': { desc: 'Amar/LAB', type: 'LAB_MOD1' },
-    'LRE': { desc: 'Rojo/LAB', type: 'LAB_MOD2' }
+    'LRE': { desc: 'Rojo/LAB', type: 'LAB_MOD2' },
+    'LWE': { desc: 'LAB Máximo', type: 'LAB_MOD3' },
+    'LBL': { desc: 'Azul/LAB', type: 'LAB_MOD4' }
 };
 
-export const VISUAL_FILTERS = {
-    'Normal': (_i: number) => '',
-    'Negativo': (i: number) => `invert(${i}%)`,
-    'Cian': (i: number) => `sepia(${i * 0.5}%) hue-rotate(180deg) saturate(${100 + i}%)`,
-    'HDR': (i: number) => `contrast(${100 + (i * 0.4)}%) saturate(${100 + (i * 0.5)}%) brightness(${100 - (i * 0.1)}%)`,
-    'Ultra': (i: number) => `saturate(${100 + (i * 3)}%) contrast(${100 + i}%)`,
-    'Grises': (i: number) => `grayscale(${i}%)`,
-    'Saturado': (i: number) => `saturate(${100 + (i * 2)}%)`
+export interface VisualFilterParam {
+    id: string;
+    label: string;
+    min: number;
+    max: number;
+    step: number;
+    default: number;
+    unit?: string;
+}
+
+export interface VisualFilterDef {
+    id: string;
+    params: VisualFilterParam[];
+    build: (p: Record<string, number>) => string;
+}
+
+export const VISUAL_FILTERS: Record<string, VisualFilterDef> = {
+    'Normal': {
+        id: 'Normal',
+        params: [],
+        build: () => ''
+    },
+    'Negativo': {
+        id: 'Negativo',
+        params: [
+            { id: 'amount', label: 'Inversión', min: 0, max: 100, step: 1, default: 100, unit: '%' }
+        ],
+        build: p => `invert(${p.amount}%)`
+    },
+    'Cian': {
+        id: 'Cian',
+        params: [
+            { id: 'sepia', label: 'Sepia', min: 0, max: 100, step: 1, default: 50, unit: '%' },
+            { id: 'sat', label: 'Saturación', min: 50, max: 400, step: 1, default: 200, unit: '%' },
+            { id: 'hue', label: 'Tono', min: 120, max: 240, step: 1, default: 180, unit: '°' }
+        ],
+        build: p => `sepia(${p.sepia}%) hue-rotate(${p.hue}deg) saturate(${p.sat}%)`
+    },
+    'Magenta': {
+        id: 'Magenta',
+        params: [
+            { id: 'sepia', label: 'Sepia', min: 0, max: 100, step: 1, default: 50, unit: '%' },
+            { id: 'sat', label: 'Saturación', min: 50, max: 400, step: 1, default: 200, unit: '%' },
+            { id: 'hue', label: 'Tono', min: 220, max: 320, step: 1, default: 270, unit: '°' }
+        ],
+        build: p => `sepia(${p.sepia}%) hue-rotate(${p.hue}deg) saturate(${p.sat}%)`
+    },
+    'Yellow': {
+        id: 'Yellow',
+        params: [
+            { id: 'sepia', label: 'Sepia', min: 0, max: 100, step: 1, default: 50, unit: '%' },
+            { id: 'sat', label: 'Saturación', min: 50, max: 400, step: 1, default: 200, unit: '%' },
+            { id: 'hue', label: 'Tono', min: -30, max: 60, step: 1, default: 0, unit: '°' }
+        ],
+        build: p => `sepia(${p.sepia}%) hue-rotate(${p.hue}deg) saturate(${p.sat}%)`
+    },
+    'HDR': {
+        id: 'HDR',
+        params: [
+            { id: 'contrast', label: 'Contraste', min: 100, max: 200, step: 1, default: 140, unit: '%' },
+            { id: 'sat', label: 'Saturación', min: 100, max: 250, step: 1, default: 150, unit: '%' },
+            { id: 'brightness', label: 'Brillo', min: 70, max: 110, step: 1, default: 90, unit: '%' }
+        ],
+        build: p => `contrast(${p.contrast}%) saturate(${p.sat}%) brightness(${p.brightness}%)`
+    },
+    'Ultra': {
+        id: 'Ultra',
+        params: [
+            { id: 'sat', label: 'Saturación', min: 100, max: 600, step: 1, default: 400, unit: '%' },
+            { id: 'contrast', label: 'Contraste', min: 100, max: 250, step: 1, default: 200, unit: '%' }
+        ],
+        build: p => `saturate(${p.sat}%) contrast(${p.contrast}%)`
+    },
+    'Vivo': {
+        id: 'Vivo',
+        params: [
+            { id: 'contrast', label: 'Contraste', min: 100, max: 300, step: 1, default: 250, unit: '%' },
+            { id: 'sat', label: 'Saturación', min: 100, max: 600, step: 1, default: 400, unit: '%' },
+            { id: 'brightness', label: 'Brillo', min: 70, max: 110, step: 1, default: 90, unit: '%' }
+        ],
+        build: p => `contrast(${p.contrast}%) saturate(${p.sat}%) brightness(${p.brightness}%)`
+    },
+    'Grises': {
+        id: 'Grises',
+        params: [
+            { id: 'amount', label: 'Intensidad', min: 0, max: 100, step: 1, default: 100, unit: '%' }
+        ],
+        build: p => `grayscale(${p.amount}%)`
+    },
+    'Saturado': {
+        id: 'Saturado',
+        params: [
+            { id: 'sat', label: 'Saturación', min: 100, max: 500, step: 1, default: 300, unit: '%' }
+        ],
+        build: p => `saturate(${p.sat}%)`
+    }
 };
+
+export function buildFilterDefaults(filterId: string): Record<string, number> {
+    const def = VISUAL_FILTERS[filterId];
+    if (!def) return {};
+    const out: Record<string, number> = {};
+    for (const p of def.params) out[p.id] = p.default;
+    return out;
+}
 
 export function rgbToLab(r: number, g: number, b: number): [number, number, number] {
     let x = r * 0.4124 + g * 0.3576 + b * 0.1805;

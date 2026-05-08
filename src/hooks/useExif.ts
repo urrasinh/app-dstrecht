@@ -13,7 +13,7 @@ export function useExif() {
         origH: 0
     });
 
-    const extractExif = useCallback(async (file: File): Promise<number> => {
+    const extractExif = useCallback(async (file: File): Promise<{ orientation: number; data: ExifData }> => {
         try {
             const gpsData = await exifr.gps(file);
             const exif = await exifr.parse(file, ['Orientation', 'Make', 'Model', 'DateTimeOriginal']);
@@ -31,19 +31,13 @@ export function useExif() {
                 lonDD = gpsData.longitude;
             }
 
-            setExifData(prev => ({
-                ...prev,
-                make,
-                model,
-                date,
-                latDD,
-                lonDD
-            }));
+            const data: ExifData = { make, model, date, latDD, lonDD, origW: 0, origH: 0 };
+            setExifData(prev => ({ ...prev, ...data }));
 
-            return orientation;
+            return { orientation, data };
         } catch (error) {
             console.error('Error extracting EXIF data:', error);
-            return 1; // Default orientation on error
+            return { orientation: 1, data: { make: 'Desconocido', model: '', date: '', latDD: null, lonDD: null, origW: 0, origH: 0 } };
         }
     }, []);
 

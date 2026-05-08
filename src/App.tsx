@@ -1,22 +1,38 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useExif } from './hooks/useExif';
 import { useGestures } from './hooks/useGestures';
-import { MODES, VISUAL_FILTERS } from './utils/dstretch';
+import { useUploadSync } from './hooks/useUploadSync';
+import { useAuth } from './contexts/AuthContext';
+import { logout, listenForegroundPush } from './firebase';
+import { whoami } from './utils/adminApi';
+import { MODES, VISUAL_FILTERS, buildFilterDefaults } from './utils/dstretch';
 import type { WorkerRequest, WorkerResponse } from './types';
-
-import { ADVANCED_FILTERS } from './utils/filters';
 
 import { InfoModal } from './components/InfoModal';
 import { ResolutionModal } from './components/ResolutionModal';
 import { ControlsPanel } from './components/ControlsPanel';
 import { FloatingTools } from './components/FloatingTools';
-import { AdvancedFiltersPanel } from './components/AdvancedFiltersPanel';
 import { FreeCrop } from './components/FreeCrop';
 import { Spinner } from './components/Spinner';
+import { AuthGate } from './components/AuthGate';
+import { InstallPrompt } from './components/InstallPrompt';
+import { Feed } from './components/Feed';
+import { UsersList } from './components/UsersList';
+import { PushPermissionBanner } from './components/PushPermissionBanner';
+import { Tutorial, type TutorialStep } from './components/Tutorial';
+import { loadDemoImage } from './utils/demoImage';
+import { DonateModal } from './components/DonateModal';
 
 import './index.css';
 
 export default function App() {
+  const { user, loading: authLoading } = useAuth();
+  const uploadSync = useUploadSync();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [activeTab, setActiveTab] = useState<'editor' | 'feed' | 'users'>('editor');
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [showDonate, setShowDonate] = useState(false);
+  const [hasDownloaded, setHasDownloaded] = useState<boolean>(() => !!localStorage.getItem('has-downloaded'));
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -41,20 +57,16 @@ export default function App() {
   // State: Modals
   const [showResModal, setShowResModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-
-
   // State: Filters
   const [currentMode, setCurrentMode] = useState('YDS');
   const [currentFilter, setCurrentFilter] = useState('Normal');
-  const [brightness, setBrightness] = useState(100);
-  const [contrast, setContrast] = useState(100);
-  const [intensity, setIntensity] = useState(100);
+  const [filterParams, setFilterParams] = useState<Record<string, Record<string, number>>>(() => {
+    const init: Record<string, Record<string, number>> = {};
+    for (const id of Object.keys(VISUAL_FILTERS)) init[id] = buildFilterDefaults(id);
+    return init;
+  });
 
-  // State: Advanced Filters & Cropping
-  const [activeAdvancedFilter, setActiveAdvancedFilter] = useState<string | null>(null);
-  const [advancedFilterParams, setAdvancedFilterParams] = useState<Record<string, Record<string, number>>>({});
-  const [advancedPreviews, setAdvancedPreviews] = useState<Record<string, string>>({});
+  // State: Cropping
   const [isCropping, setIsCropping] = useState(false);
 
   // Hooks
@@ -106,24 +118,6 @@ export default function App() {
         setIsProcessing(false);
         setLoadingProgress(100);
         showToast("Imagen procesada correctamente");
-      } else if (res.type === 'ADVANCED_PREVIEWS_SUCCESS') {
-        const previewsObj: Record<string, string> = {};
-
-        // Convert ImageData to canvas to dataURL for UI display
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-
-        if (tempCtx) {
-          res.previews.forEach(p => {
-            tempCanvas.width = p.imageData.width;
-            tempCanvas.height = p.imageData.height;
-            tempCtx.putImageData(p.imageData, 0, 0);
-            previewsObj[p.filterId] = tempCanvas.toDataURL('image/jpeg', 0.6);
-          });
-        }
-
-        setAdvancedPreviews(previewsObj);
-
       } else if (res.type === 'ERROR') {
         console.error("Worker Error:", res.error);
         setIsProcessing(false);
@@ -153,11 +147,52 @@ export default function App() {
     };
   }, [handleMouseMove, handleMouseUp, handleWheel]);
 
+  // Auto-fit image whenever the viewport size changes (panel toggle, rotation, etc.)
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || !baseImage) return;
+    const ro = new ResizeObserver(() => {
+      if (viewport.clientWidth > 0 && viewport.clientHeight > 0) {
+        resetCamera(baseImage.width, baseImage.height, viewport.clientWidth, viewport.clientHeight);
+      }
+    });
+    ro.observe(viewport);
+    return () => ro.disconnect();
+  }, [baseImage, resetCamera]);
+
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 3000);
   };
+
+  // First-login tutorial trigger
+  useEffect(() => {
+    if (!user) return;
+    if (localStorage.getItem('tutorial-completed-v1')) return;
+    // small delay so the layout is ready
+    const t = setTimeout(() => setShowTutorial(true), 600);
+    return () => clearTimeout(t);
+  }, [user]);
+
+  // Detect admin role; push token registration is opt-in via PushPermissionBanner
+  useEffect(() => {
+    if (!user) { setIsAdmin(false); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await whoami();
+        if (cancelled) return;
+        setIsAdmin(r.isAdmin);
+      } catch (e) {
+        console.warn('whoami failed', e);
+      }
+    })();
+    listenForegroundPush((title, body) => {
+      showToast(`${title}: ${body}`);
+    });
+    return () => { cancelled = true; };
+  }, [user]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -170,10 +205,31 @@ export default function App() {
     try {
       // 1. Intentar extraer metadatos de forma asíncrona pero sin bloquear la carga si falla
       let orientation = 1;
+      let exifSnapshot = { make: '', model: '', date: '', latDD: null as number | null, lonDD: null as number | null };
       try {
-        orientation = await extractExif(file);
+        const r = await extractExif(file);
+        orientation = r.orientation;
+        exifSnapshot = { make: r.data.make, model: r.data.model, date: r.data.date, latDD: r.data.latDD, lonDD: r.data.lonDD };
       } catch (exifErr) {
         console.warn("Exif extraction failed, using default orientation 1", exifErr);
+      }
+
+      // Encolar la imagen ORIGINAL para subir a Drive/Sheets
+      if (user) {
+        try {
+          await uploadSync.queue({
+            userEmail: user.email || 'unknown',
+            fileName: file.name,
+            mimeType: file.type || 'image/jpeg',
+            fileBlob: file,
+            lat: exifSnapshot.latDD,
+            lon: exifSnapshot.lonDD,
+            camera: `${exifSnapshot.make} ${exifSnapshot.model}`.trim(),
+            captureDate: exifSnapshot.date,
+          });
+        } catch (qErr) {
+          console.warn('No se pudo encolar la subida', qErr);
+        }
       }
 
       setLoadingText("DECODIFICANDO IMAGEN...");
@@ -253,6 +309,15 @@ export default function App() {
     }
   };
 
+  const loadTutorialDemo = async () => {
+    const demo = await loadDemoImage();
+    setOriginalDimensions(demo.width, demo.height);
+    setIsProcessing(true);
+    setLoadingProgress(0);
+    setLoadingText('CARGANDO DEMO...');
+    startInitialProcessing(demo, false);
+  };
+
   const startInitialProcessing = (img: HTMLImageElement, scaleDown: boolean) => {
     setShowResModal(false);
     resetAllFiltersUI();
@@ -274,32 +339,6 @@ export default function App() {
       imageData,
       scaleDown
     } as WorkerRequest);
-  };
-
-  const handleApplyAdvancedFilter = () => {
-    if (!baseImage || !activeAdvancedFilter || !workerRef.current || !canvasRef.current) return;
-
-    setIsProcessing(true);
-    setLoadingProgress(0);
-    setLoadingText("APLICANDO FILTRO AVANZADO...");
-
-    // Si el usuario quiere aplicarlo sobre TODO, podríamos mandar la imagen base original,
-    // o podríamos mandarla sobre lo que actualmente está viendo en el canvas filtrado. 
-    // Para simplificar, obtenemos la ImageData del canvas actual.
-    const sourceCanvas = document.createElement('canvas');
-    sourceCanvas.width = canvasRef.current.width;
-    sourceCanvas.height = canvasRef.current.height;
-    sourceCanvas.getContext('2d')!.drawImage(canvasRef.current, 0, 0);
-    const currentImageData = sourceCanvas.getContext('2d')!.getImageData(0, 0, sourceCanvas.width, sourceCanvas.height);
-
-    const params = advancedFilterParams[activeAdvancedFilter] || {};
-
-    workerRef.current.postMessage({
-      type: 'PROCESS_ADVANCED_FILTER',
-      imageData: currentImageData,
-      filterId: activeAdvancedFilter,
-      params
-    });
   };
 
   const generatePreviews = (baseImgData: ImageData) => {
@@ -349,12 +388,6 @@ export default function App() {
     }
 
     setPreviews(generated);
-
-    // Trigger Advanced Previews in Worker
-    workerRef.current?.postMessage({
-      type: 'GENERATE_ADVANCED_PREVIEWS',
-      previewImageData: previewBaseData
-    });
   };
 
   // Generate real previews when cachedModes updates
@@ -415,23 +448,20 @@ export default function App() {
     ctx.save();
 
     if (!isShowingOriginal) {
-      let filterStr = VISUAL_FILTERS[currentFilter as keyof typeof VISUAL_FILTERS](intensity);
-      filterStr += ` brightness(${brightness}%) contrast(${contrast}%)`;
+      const def = VISUAL_FILTERS[currentFilter];
+      const filterStr = def ? def.build(filterParams[currentFilter] || {}) : '';
       ctx.filter = filterStr;
     }
 
     ctx.drawImage(off, 0, 0);
     ctx.restore();
 
-  }, [baseImage, cachedModes, currentMode, isShowingOriginal, currentFilter, intensity, brightness, contrast]);
+  }, [baseImage, cachedModes, currentMode, isShowingOriginal, currentFilter, filterParams]);
 
 
   const resetAllFiltersUI = () => {
     setCurrentMode('ORIGINAL');
     setCurrentFilter('Normal');
-    setBrightness(100);
-    setContrast(100);
-    setIntensity(100);
   };
 
   const handleReset = () => {
@@ -457,9 +487,8 @@ export default function App() {
     const bCtx = bakeCanvas.getContext('2d')!;
 
     // Draw the image without transform but WITH filters
-    let filterStr = VISUAL_FILTERS[currentFilter as keyof typeof VISUAL_FILTERS](intensity);
-    filterStr += ` brightness(${brightness}%) contrast(${contrast}%)`;
-    bCtx.filter = filterStr;
+    const def = VISUAL_FILTERS[currentFilter];
+    bCtx.filter = def ? def.build(filterParams[currentFilter] || {}) : '';
 
     const off = document.createElement('canvas');
     off.width = cachedModes[currentMode].width;
@@ -592,11 +621,174 @@ export default function App() {
     a.download = `DStretch_${currentMode}_${Date.now()}.jpg`;
     a.click();
     showToast("Imagen descargada");
+    if (!hasDownloaded) {
+      localStorage.setItem('has-downloaded', '1');
+      setHasDownloaded(true);
+    }
   }
 
 
+  // Tutorial step definitions
+  const tutorialSteps: TutorialStep[] = [
+    {
+      id: 'welcome',
+      title: '¡Bienvenido!',
+      body: (
+        <>
+          Te voy a mostrar cómo usar la app en menos de un minuto. Vamos a procesar una imagen
+          de demostración para que veas cómo funcionan los filtros DStretch.
+        </>
+      ),
+      target: null,
+      nextLabel: 'Empezar',
+    },
+    {
+      id: 'cargar',
+      title: 'Cargar una imagen',
+      body: (
+        <>
+          Aquí cargas tus fotos de pictografías. Para el tutorial, vamos a usar una imagen
+          de muestra — pulsa <b>Siguiente</b> para cargarla.
+        </>
+      ),
+      target: '[data-tutorial="cargar"]',
+      placement: 'bottom',
+      nextLabel: 'Cargar demo',
+      onEnter: () => {
+        if (!baseImage) loadTutorialDemo();
+      },
+      settleMs: 100,
+    },
+    {
+      id: 'dstretch',
+      title: 'Algoritmos DStretch',
+      body: (
+        <>
+          Estos botones aplican distintos algoritmos de decorrelación. <b>YDS</b> realza amarillos,
+          <b> YBR</b> realza rojos, <b>LRE</b> es óptimo para ocres rupestres. Cada uno usa una
+          matemática diferente para sacar a la luz pigmentos.
+        </>
+      ),
+      target: '[data-tutorial="dstretch"]',
+      placement: 'top',
+      onEnter: () => {
+        // Auto-apply YDS to show the effect
+        if (baseImage) setCurrentMode('YDS');
+      },
+    },
+    {
+      id: 'visual-filters',
+      title: 'Filtros visuales',
+      body: (
+        <>
+          Aplica realce adicional encima del DStretch. Cada filtro tiene <b>parámetros ajustables
+          </b> que aparecen al seleccionarlo: contraste, saturación, brillo, etc.
+        </>
+      ),
+      target: '[data-tutorial="visual-filters"]',
+      placement: 'top',
+    },
+    {
+      id: 'eye',
+      title: 'Ver el original',
+      body: (
+        <>
+          <b>Mantén presionado</b> este botón con el ojo para ver la imagen original sin filtros.
+          Suéltalo y vuelves al resultado procesado. Útil para comparar el "antes y después".
+        </>
+      ),
+      target: '[data-tutorial="eye"]',
+      placement: 'left',
+    },
+    {
+      id: 'bake',
+      title: 'Fijar filtro (acumular)',
+      body: (
+        <>
+          Este botón <b>fija</b> el resultado actual como nueva base. Después puedes aplicar
+          OTRO algoritmo encima — así combinas filtros (ej: YDS → fijar → LRE) para realces
+          más profundos.
+        </>
+      ),
+      target: '[data-tutorial="bake"]',
+      placement: 'left',
+    },
+    {
+      id: 'reset',
+      title: 'Restaurar',
+      body: (
+        <>
+          Vuelve a la imagen original sin filtros. Útil si te pierdes acumulando filtros y
+          quieres empezar de cero.
+        </>
+      ),
+      target: '[data-tutorial="reset"]',
+      placement: 'left',
+    },
+    {
+      id: 'menu',
+      title: 'Menú de opciones',
+      body: (
+        <>
+          Aquí encuentras: girar la imagen 90°, recortar a la vista actual, ver la metadata
+          (cámara, GPS, fecha) y cerrar sesión.
+        </>
+      ),
+      target: '[data-tutorial="menu"]',
+      placement: 'bottom',
+    },
+    {
+      id: 'donate',
+      title: '☕ Apoya el proyecto',
+      body: (
+        <>
+          Esta app es <b>100% gratis</b>. Si te ha sido útil, cualquier aporte ayuda a
+          financiar hosting, almacenamiento y desarrollo. Toca este botón cuando quieras
+          ver opciones de aporte (PayPal o transferencia). ¡Sin presión!
+        </>
+      ),
+      target: '[data-tutorial="donate"]',
+      placement: 'bottom',
+    },
+    {
+      id: 'done',
+      title: '¡Listo!',
+      body: (
+        <>
+          Ya conoces lo básico. Sube tus propias fotos de pictografías y experimenta con los modos
+          DStretch para ver cuál realza mejor tus pigmentos. Puedes volver a ver este tutorial
+          desde el menú lateral.
+        </>
+      ),
+      target: null,
+      nextLabel: 'Empezar a usar',
+    },
+  ];
+
+  const handleTutorialDone = () => {
+    localStorage.setItem('tutorial-completed-v1', String(Date.now()));
+    setShowTutorial(false);
+  };
+
+  if (authLoading) {
+    return (
+      <div className="fixed inset-0 bg-slate-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-slate-700 border-t-emerald-500 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+  if (!user) return <AuthGate />;
+
   return (
     <>
+      <Tutorial
+        isOpen={showTutorial}
+        steps={tutorialSteps}
+        onComplete={handleTutorialDone}
+        onSkip={handleTutorialDone}
+      />
+      <DonateModal isOpen={showDonate} onClose={() => setShowDonate(false)} />
+      <InstallPrompt />
       {/* Toast Notification */}
       <div id="toast" className={`fixed left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xl transition-all duration-300 z-[200] flex items-center gap-2 ${toastMsg ? 'top-5' : '-top-24'}`}>
         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -622,34 +814,6 @@ export default function App() {
         gpsFull={(exifData.latDD && exifData.lonDD) ? `${exifData.latDD.toFixed(6)}, ${exifData.lonDD.toFixed(6)}` : 'No registradas en el archivo'}
       />
 
-      <AdvancedFiltersPanel
-        isVisible={showAdvancedFilters}
-        onClose={() => setShowAdvancedFilters(false)}
-        filters={ADVANCED_FILTERS}
-        activeFilterId={activeAdvancedFilter}
-        filterParams={advancedFilterParams}
-        onFilterSelect={(id) => {
-          setActiveAdvancedFilter(id);
-          if (!advancedFilterParams[id]) {
-            const def = ADVANCED_FILTERS.find(f => f.id === id);
-            const defaultParams: Record<string, number> = {};
-            def?.params.forEach(p => defaultParams[p.id] = p.default);
-            setAdvancedFilterParams(prev => ({ ...prev, [id]: defaultParams }));
-          }
-        }}
-        onParamChange={(filterId, paramId, value) => {
-          setAdvancedFilterParams(prev => ({
-            ...prev,
-            [filterId]: {
-              ...(prev[filterId] || {}),
-              [paramId]: value
-            }
-          }));
-        }}
-        onApply={handleApplyAdvancedFilter}
-        isProcessing={isProcessing}
-      />
-
       {isCropping && canvasRef.current && (
         <FreeCrop
           imageUrl={canvasRef.current.toDataURL('image/jpeg', 0.8)}
@@ -667,9 +831,22 @@ export default function App() {
             <img src="/collasuyo.svg" alt="Logo" className="h-7" />
             <span className="text-red-500 font-bold text-xs mt-1.5 tracking-tighter uppercase">App</span>
           </div>
+          {(uploadSync.pending > 0 || !uploadSync.online) && (
+            <div
+              onClick={() => uploadSync.online && uploadSync.sync()}
+              className={`text-[10px] font-bold px-2 py-1 rounded-md border flex items-center gap-1 cursor-pointer ${uploadSync.online ? 'text-amber-400 bg-amber-950/40 border-amber-900/50' : 'text-slate-400 bg-slate-800 border-slate-700'}`}
+              title={uploadSync.online ? 'Click para sincronizar' : 'Sin conexión — se sincronizará al volver'}
+            >
+              {uploadSync.syncing && <span className="w-2 h-2 rounded-full border border-amber-400 border-t-transparent animate-spin"></span>}
+              {!uploadSync.online && (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636L5.636 18.364m12.728 0L5.636 5.636" /></svg>
+              )}
+              {uploadSync.pending} pend.
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          <label className="bg-red-600 active:bg-red-700 text-white px-3.5 py-1.5 rounded-lg text-sm font-semibold cursor-pointer shadow-lg shadow-red-900/20 transition-colors flex items-center gap-1.5">
+          <label data-tutorial="cargar" className="bg-red-600 active:bg-red-700 text-white px-3.5 py-1.5 rounded-lg text-sm font-semibold cursor-pointer shadow-lg shadow-red-900/20 transition-colors flex items-center gap-1.5">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
             </svg>
@@ -679,41 +856,71 @@ export default function App() {
 
           {baseImage && (
             <>
-              <button
-                onClick={() => setShowAdvancedFilters(true)}
-                className="text-blue-400 font-bold text-xs bg-blue-950/40 px-3 py-1.5 rounded-lg active:bg-blue-900/80 transition-colors border border-blue-900/50 flex gap-1.5 items-center justify-center uppercase tracking-wide hover:bg-blue-900/50"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                </svg>
-                <span className="hidden sm:inline">Expertos</span>
-              </button>
-
-              <button onClick={downloadImage} className="text-emerald-400 bg-emerald-950/50 p-1.5 rounded-lg active:bg-emerald-900/80 transition-colors border border-emerald-900/50">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4-4m4 4V4" /></svg>
+              <button onClick={downloadImage} className="text-emerald-400 bg-emerald-950/50 px-3 py-1.5 rounded-lg active:bg-emerald-900/80 transition-colors border border-emerald-900/50 flex items-center gap-1.5 text-sm font-semibold">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4-4m4 4V4" /></svg>
+                Descargar
               </button>
             </>
           )}
         </div>
       </header>
 
-      {/* Main Viewport */}
+      {/* Push permission banner (admin only, opt-in) */}
+      {isAdmin && <PushPermissionBanner />}
+
+      {/* Admin tab bar */}
+      {isAdmin && (
+        <div className="shrink-0 bg-slate-900 border-b border-slate-800 flex">
+          {([
+            { id: 'editor', label: 'Editor' },
+            { id: 'feed', label: 'Feed' },
+            { id: 'users', label: 'Usuarios' },
+          ] as const).map(t => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={`flex-1 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors ${activeTab === t.id ? 'text-emerald-400 border-b-2 border-emerald-500 bg-slate-950/30' : 'text-slate-500 border-b-2 border-transparent hover:text-slate-300'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Admin views */}
+      {isAdmin && activeTab === 'feed' && <Feed />}
+      {isAdmin && activeTab === 'users' && <UsersList />}
+
+      {/* Editor (default for everyone) */}
       <main
         ref={viewportRef}
-        className="h-[55dvh] w-full relative overflow-hidden bg-slate-950 flex items-center justify-center touch-none shrink-0"
+        className={`flex-1 min-h-0 w-full relative overflow-hidden bg-slate-950 flex items-center justify-center touch-none ${isAdmin && activeTab !== 'editor' ? 'hidden' : ''}`}
         {...gestureEvents}
       >
-        {/* Top left Meta Bar */}
+        {/* Top left Meta Bar + Donate button (side-by-side) */}
         {baseImage && (
-          <div className="absolute top-2.5 left-2.5 bg-slate-900/75 backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] text-slate-400 z-15 flex gap-4 border border-slate-700 shadow-lg pointer-events-none">
-            <span className="font-mono">{baseImage.width}x{baseImage.height}px</span>
-            <span className={`flex items-center gap-1 ${exifData.latDD ? 'text-emerald-400' : 'text-slate-500'}`}>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              {exifData.latDD ? `${exifData.latDD.toFixed(4)}, ${exifData.lonDD?.toFixed(4)}` : 'Sin GPS'}
-            </span>
+          <div className="absolute top-2.5 left-2.5 z-15 flex items-stretch gap-2">
+            <div className="bg-slate-900/75 backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] text-slate-400 flex items-center gap-3 border border-slate-700 shadow-lg pointer-events-none">
+              <span className="font-mono">{baseImage.width}x{baseImage.height}px</span>
+              <span className={`flex items-center gap-1 ${exifData.latDD ? 'text-emerald-400' : 'text-slate-500'}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                {exifData.latDD ? `${exifData.latDD.toFixed(4)}, ${exifData.lonDD?.toFixed(4)}` : 'Sin GPS'}
+              </span>
+            </div>
+            <button
+              data-tutorial="donate"
+              onClick={() => setShowDonate(true)}
+              title="Regálame un café"
+              className={`backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] flex items-center gap-1.5 border shadow-lg transition-colors uppercase tracking-wider font-semibold ${hasDownloaded
+                ? 'bg-amber-500/95 hover:bg-amber-500 text-slate-900 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.5)] animate-pulse'
+                : 'bg-slate-900/75 hover:bg-slate-800 text-slate-400 border-slate-700'}`}
+            >
+              <span className="text-sm leading-none">☕</span>
+              <span>Regálame un café</span>
+            </button>
           </div>
         )}
 
@@ -721,6 +928,7 @@ export default function App() {
         {baseImage && (
           <div className="absolute top-2.5 right-2.5 z-30">
             <button
+              data-tutorial="menu"
               onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen) }}
               className="w-9 h-9 rounded-lg bg-slate-800/90 text-slate-200 flex items-center justify-center border border-slate-600 shadow-lg backdrop-blur-md"
             >
@@ -737,9 +945,24 @@ export default function App() {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" /></svg>
                   Recortar a la Vista
                 </button>
-                <button onClick={() => { setIsMenuOpen(false); setShowInfoModal(true); }} className="px-4 py-3 text-slate-200 text-sm font-semibold flex items-center gap-3 hover:bg-slate-800 active:bg-blue-600 transition-colors">
+                <button onClick={() => { setIsMenuOpen(false); setShowInfoModal(true); }} className="px-4 py-3 text-slate-200 text-sm font-semibold flex items-center gap-3 border-b border-slate-800 hover:bg-slate-800 active:bg-blue-600 transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   Info de Imagen
+                </button>
+                <button onClick={() => { setIsMenuOpen(false); setShowTutorial(true); }} className="px-4 py-3 text-slate-200 text-sm font-semibold flex items-center gap-3 border-b border-slate-800 hover:bg-slate-800 active:bg-emerald-600 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.5M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.5h.01" /></svg>
+                  Ver tutorial
+                </button>
+                <button onClick={() => { setIsMenuOpen(false); setShowDonate(true); }} className="px-4 py-3 text-slate-200 text-sm font-semibold flex items-center gap-3 border-b border-slate-800 hover:bg-slate-800 active:bg-amber-600 transition-colors">
+                  <span className="text-base leading-none">☕</span>
+                  Apoyar el proyecto
+                </button>
+                <div className="px-4 py-2 text-[10px] text-slate-500 border-b border-slate-800 truncate" title={user?.email ?? ''}>
+                  {user?.email}
+                </div>
+                <button onClick={async () => { setIsMenuOpen(false); await logout(); }} className="px-4 py-3 text-red-400 text-sm font-semibold flex items-center gap-3 hover:bg-slate-800 active:bg-red-900 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                  Cerrar sesión
                 </button>
               </div>
             )}
@@ -783,34 +1006,22 @@ export default function App() {
       </main>
 
       <ControlsPanel
-        isVisible={!!baseImage && !isCropping}
+        isVisible={!!baseImage && !isCropping && (!isAdmin || activeTab === 'editor')}
         previews={previews}
         currentMode={currentMode}
         onSelectMode={setCurrentMode}
         currentFilter={currentFilter}
         onSelectFilter={setCurrentFilter}
-        brightness={brightness}
-        setBrightness={setBrightness}
-        contrast={contrast}
-        setContrast={setContrast}
-        intensity={intensity}
-        setIntensity={setIntensity}
-        onCropBtn={handleCrop}
-        advancedPreviews={advancedPreviews}
-        activeAdvancedFilter={activeAdvancedFilter}
-        onSelectAdvancedFilter={setActiveAdvancedFilter}
-        advancedFilterParams={advancedFilterParams}
-        onParamChange={(filterId, paramId, value) => {
-          setAdvancedFilterParams(prev => ({
+        filterParams={filterParams}
+        onFilterParamChange={(filterId, paramId, val) => {
+          setFilterParams(prev => ({
             ...prev,
-            [filterId]: {
-              ...(prev[filterId] || {}),
-              [paramId]: value
-            }
+            [filterId]: { ...(prev[filterId] || {}), [paramId]: val }
           }));
         }}
-        onApplyAdvancedFilter={handleApplyAdvancedFilter}
-        isProcessing={isProcessing}
+        onResetFilterParams={(filterId) => {
+          setFilterParams(prev => ({ ...prev, [filterId]: buildFilterDefaults(filterId) }));
+        }}
       />
     </>
   );

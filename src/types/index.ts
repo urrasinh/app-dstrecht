@@ -8,7 +8,7 @@ export interface ExifData {
     origH: number;
 }
 
-export type DStretchModeType = 'NONE' | 'LAB' | 'LAB_MOD1' | 'LAB_MOD2' | 'MATRIX';
+export type DStretchModeType = 'NONE' | 'LAB' | 'LAB_MOD1' | 'LAB_MOD2' | 'LAB_MOD3' | 'LAB_MOD4' | 'MATRIX';
 
 export interface DStretchModeConfig {
     desc: string;

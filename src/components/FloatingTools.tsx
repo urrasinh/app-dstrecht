@@ -22,6 +22,7 @@ export const FloatingTools: React.FC<FloatingToolsProps> = ({
     return (
         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-3.5 z-10">
             <button
+                data-tutorial="eye"
                 onPointerDown={onShowOriginalStart}
                 onPointerUp={onShowOriginalEnd}
                 onPointerLeave={onShowOriginalEnd}
@@ -38,6 +39,7 @@ export const FloatingTools: React.FC<FloatingToolsProps> = ({
             </button>
 
             <button
+                data-tutorial="bake"
                 onClick={onBake}
                 className="w-11 h-11 rounded-full bg-slate-800/85 text-yellow-300 border border-yellow-600 flex justify-center items-center shadow-lg backdrop-blur-sm transition-all duration-200 active:bg-yellow-600 active:text-white"
                 title="Fijar Base (Acumular Filtros)"
@@ -48,6 +50,7 @@ export const FloatingTools: React.FC<FloatingToolsProps> = ({
             </button>
 
             <button
+                data-tutorial="reset"
                 onClick={onReset}
                 className="w-11 h-11 rounded-full bg-red-500 text-white border border-red-400 flex justify-center items-center shadow-lg backdrop-blur-sm transition-all duration-200 active:bg-red-600"
                 title="Limpiar todos los filtros"

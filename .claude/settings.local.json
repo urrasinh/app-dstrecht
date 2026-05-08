@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(npx vite *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)",
+      "Bash(npx tsc *)",
+      "Bash(taskkill //F //IM node.exe)",
+      "mcp__Claude_in_Chrome__browser_batch",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__computer",
+      "Bash(curl -s https://filtro-pictografias.netlify.app/assets/index-lJkwUto_.js)",
+      "Bash(cygpath -w \"/c/Users/urras/Documents/gravity app/dstrecht/.claude/worktrees/jolly-hellman-d0bdfd/dist\")"
+    ]
+  }
+}

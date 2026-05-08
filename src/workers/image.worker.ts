@@ -1,14 +1,27 @@
-import { eigs, multiply, diag, transpose } from 'mathjs';
-import type { ExtendedWorkerRequest, WorkerResponse } from '../types';
+import { Matrix, EigenvalueDecomposition } from 'ml-matrix';
+import type { WorkerRequest, WorkerResponse } from '../types';
 import { MODES, rgbToLab } from '../utils/dstretch';
-import { processAdvancedFilter } from '../utils/advancedFilters';
-import { ADVANCED_FILTERS } from '../utils/filters';
 
 // Constants
 const MAX_PX = 2048;
-const SIGMA = 1.5;
+const SCALE_GAIN = 15;       // Multiplicative contrast boost (DStretch traditional value)
+const CLIP_PCT = 0.005;      // 0.5% percentile clipping each side before normalization
+const EPS = 1e-7;
 
-function applyDStretch(imageData: ImageData, spaceName: string, sigma: number): ImageData {
+/**
+ * Decorrelation Stretch (DStretch) — based on Alley/Harman/lbrabec reference.
+ *
+ * Pipeline:
+ *   1. RGB → working space (matrix pre-multiply or LAB conversion)
+ *   2. Compute mean and 3x3 covariance
+ *   3. Eigendecomposition of covariance  ⇒ V (eigenvectors), λ (eigenvalues)
+ *   4. Build SCALED ZCA transform:
+ *        T = diag(σ_input) · V · diag(1/√|λ|) · Vᵀ
+ *      where σ_input = sqrt(diag(cov)) preserves per-channel variance.
+ *   5. Apply T to centered pixels with scalar gain: y = (x - mean) · Tᵀ · gain + mean
+ *   6. Percentile-clip (top/bottom 0.5%) + min/max normalize to [0, 255]
+ */
+function applyDStretch(imageData: ImageData, spaceName: string): ImageData {
     const modeConfig = MODES[spaceName];
     if (modeConfig.type === 'NONE') {
         return new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height);
@@ -17,110 +30,161 @@ function applyDStretch(imageData: ImageData, spaceName: string, sigma: number): 
     const data = imageData.data;
     const len = data.length / 4;
 
-    // Allocate memory
+    // ── 1. Pre-transform RGB → working space ───────────────────────────────
     let pixels: Float32Array | null = new Float32Array(len * 3);
 
     if (modeConfig.type && modeConfig.type.startsWith('LAB')) {
         for (let i = 0; i < len; i++) {
             const lab = rgbToLab(data[i * 4] / 255, data[i * 4 + 1] / 255, data[i * 4 + 2] / 255);
             if (modeConfig.type === 'LAB_MOD1') { lab[1] *= 1.2; lab[2] *= 0.8; }
-            if (modeConfig.type === 'LAB_MOD2') { lab[1] *= 1.5; lab[2] *= 0.5; }
-            pixels[i * 3] = lab[0]; pixels[i * 3 + 1] = lab[1]; pixels[i * 3 + 2] = lab[2];
+            else if (modeConfig.type === 'LAB_MOD2') { lab[1] *= 1.5; lab[2] *= 0.5; }
+            else if (modeConfig.type === 'LAB_MOD3') { lab[1] *= 2.0; lab[2] *= 2.0; }
+            else if (modeConfig.type === 'LAB_MOD4') { lab[1] *= 0.5; lab[2] *= 1.5; }
+            pixels[i * 3] = lab[0];
+            pixels[i * 3 + 1] = lab[1];
+            pixels[i * 3 + 2] = lab[2];
         }
     } else {
-        const matrix = modeConfig.mat!;
+        const m = modeConfig.mat!;
+        const m00 = m[0][0], m01 = m[0][1], m02 = m[0][2];
+        const m10 = m[1][0], m11 = m[1][1], m12 = m[1][2];
+        const m20 = m[2][0], m21 = m[2][1], m22 = m[2][2];
         for (let i = 0; i < len; i++) {
             const r = data[i * 4] / 255, g = data[i * 4 + 1] / 255, b = data[i * 4 + 2] / 255;
-            pixels[i * 3] = r * matrix[0][0] + g * matrix[0][1] + b * matrix[0][2];
-            pixels[i * 3 + 1] = r * matrix[1][0] + g * matrix[1][1] + b * matrix[1][2];
-            pixels[i * 3 + 2] = r * matrix[2][0] + g * matrix[2][1] + b * matrix[2][2];
+            pixels[i * 3] = r * m00 + g * m01 + b * m02;
+            pixels[i * 3 + 1] = r * m10 + g * m11 + b * m12;
+            pixels[i * 3 + 2] = r * m20 + g * m21 + b * m22;
         }
     }
 
-    let means = [0, 0, 0];
+    // ── 2. Mean per channel ────────────────────────────────────────────────
+    let mean0 = 0, mean1 = 0, mean2 = 0;
     for (let i = 0; i < len; i++) {
-        means[0] += pixels[i * 3];
-        means[1] += pixels[i * 3 + 1];
-        means[2] += pixels[i * 3 + 2];
+        mean0 += pixels[i * 3];
+        mean1 += pixels[i * 3 + 1];
+        mean2 += pixels[i * 3 + 2];
     }
-    means = means.map(m => m / len);
+    mean0 /= len; mean1 /= len; mean2 /= len;
 
-    let cov = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+    // ── 3. 3x3 covariance ──────────────────────────────────────────────────
+    let c00 = 0, c01 = 0, c02 = 0, c11 = 0, c12 = 0, c22 = 0;
     for (let i = 0; i < len; i++) {
-        const d0 = pixels[i * 3] - means[0], d1 = pixels[i * 3 + 1] - means[1], d2 = pixels[i * 3 + 2] - means[2];
-        cov[0][0] += d0 * d0; cov[0][1] += d0 * d1; cov[0][2] += d0 * d2;
-        cov[1][1] += d1 * d1; cov[1][2] += d1 * d2; cov[2][2] += d2 * d2;
+        const d0 = pixels[i * 3] - mean0;
+        const d1 = pixels[i * 3 + 1] - mean1;
+        const d2 = pixels[i * 3 + 2] - mean2;
+        c00 += d0 * d0; c01 += d0 * d1; c02 += d0 * d2;
+        c11 += d1 * d1; c12 += d1 * d2;
+        c22 += d2 * d2;
     }
-    for (let i = 0; i < 3; i++) for (let j = i; j < 3; j++) { cov[i][j] /= len; cov[j][i] = cov[i][j]; }
+    c00 /= len; c01 /= len; c02 /= len; c11 /= len; c12 /= len; c22 /= len;
 
-    // @ts-ignore math.js types
-    const resultObj = eigs(cov);
-    const values = resultObj.values as number[];
-    const vectors = (resultObj.eigenvectors ? resultObj.eigenvectors.map((e: any) => e.vector) : (resultObj as any).vectors) as number[][];
+    // Per-channel std devs (preserved through decorrelation)
+    const sd0 = Math.sqrt(Math.abs(c00) + EPS);
+    const sd1 = Math.sqrt(Math.abs(c11) + EPS);
+    const sd2 = Math.sqrt(Math.abs(c22) + EPS);
 
-    const invSqrtL = values.map(v => 1.0 / Math.sqrt(Math.abs(v) + 1e-7));
-    const transform = multiply(multiply(vectors, diag(invSqrtL)), transpose(vectors));
+    // ── 4. Eigendecomposition + scaled ZCA transform ───────────────────────
+    let t00 = 1, t01 = 0, t02 = 0;
+    let t10 = 0, t11 = 1, t12 = 0;
+    let t20 = 0, t21 = 0, t22 = 1;
 
+    try {
+        const cov = new Matrix([
+            [c00, c01, c02],
+            [c01, c11, c12],
+            [c02, c12, c22],
+        ]);
+        const evd = new EigenvalueDecomposition(cov, { assumeSymmetric: true });
+        const V = evd.eigenvectorMatrix;
+        const lambda = evd.realEigenvalues;
+
+        const invSqrtL = Matrix.diag(lambda.map(l => 1 / Math.sqrt(Math.abs(l) + EPS)));
+        const sigmaDiag = Matrix.diag([sd0, sd1, sd2]);
+
+        // T = diag(σ) · V · diag(1/√λ) · Vᵀ  — scaled ZCA whitening
+        const transform = sigmaDiag.mmul(V).mmul(invSqrtL).mmul(V.transpose());
+
+        t00 = transform.get(0, 0); t01 = transform.get(0, 1); t02 = transform.get(0, 2);
+        t10 = transform.get(1, 0); t11 = transform.get(1, 1); t12 = transform.get(1, 2);
+        t20 = transform.get(2, 0); t21 = transform.get(2, 1); t22 = transform.get(2, 2);
+    } catch (err) {
+        console.warn(`EVD failed for mode ${spaceName}, falling back to identity`, err);
+    }
+
+    // ── 5. Apply transform with mean preservation + scalar gain ────────────
     let result: Float32Array | null = new Float32Array(len * 3);
-    let mins = [Infinity, Infinity, Infinity], maxs = [-Infinity, -Infinity, -Infinity];
-
-    // @ts-ignore mathjs types
-    const rawTransform = Array.isArray(transform) ? transform : transform.valueOf();
-
-    // Convert transform matrix to vanilla JS array of arrays for speed
-    const t = [
-        [rawTransform[0][0], rawTransform[0][1], rawTransform[0][2]],
-        [rawTransform[1][0], rawTransform[1][1], rawTransform[1][2]],
-        [rawTransform[2][0], rawTransform[2][1], rawTransform[2][2]]
-    ];
 
     for (let i = 0; i < len; i++) {
-        const d0 = pixels[i * 3] - means[0];
-        const d1 = pixels[i * 3 + 1] - means[1];
-        const d2 = pixels[i * 3 + 2] - means[2];
+        const d0 = pixels[i * 3] - mean0;
+        const d1 = pixels[i * 3 + 1] - mean1;
+        const d2 = pixels[i * 3 + 2] - mean2;
 
-        // Manual matrix multiplication (Fastest unrolled approach)
-        const s0 = t[0][0] * d0 + t[0][1] * d1 + t[0][2] * d2;
-        const s1 = t[1][0] * d0 + t[1][1] * d1 + t[1][2] * d2;
-        const s2 = t[2][0] * d0 + t[2][1] * d1 + t[2][2] * d2;
-
-        const val0 = s0 * sigma;
-        const val1 = s1 * sigma;
-        const val2 = s2 * sigma;
-
-        result[i * 3] = val0;
-        result[i * 3 + 1] = val1;
-        result[i * 3 + 2] = val2;
-
-        if (val0 < mins[0]) mins[0] = val0; if (val0 > maxs[0]) maxs[0] = val0;
-        if (val1 < mins[1]) mins[1] = val1; if (val1 > maxs[1]) maxs[1] = val1;
-        if (val2 < mins[2]) mins[2] = val2; if (val2 > maxs[2]) maxs[2] = val2;
+        // y = (x - mean) · Tᵀ · gain + mean   (mean preserved)
+        result[i * 3] = (t00 * d0 + t01 * d1 + t02 * d2) * SCALE_GAIN + mean0;
+        result[i * 3 + 1] = (t10 * d0 + t11 * d1 + t12 * d2) * SCALE_GAIN + mean1;
+        result[i * 3 + 2] = (t20 * d0 + t21 * d1 + t22 * d2) * SCALE_GAIN + mean2;
     }
 
-    // Free pixels array
     pixels = null;
+
+    // ── 6. Percentile clipping per channel ─────────────────────────────────
+    // Estimate percentiles using a sampled histogram (faster than full sort).
+    const lo = [0, 0, 0];
+    const hi = [0, 0, 0];
+    for (let ch = 0; ch < 3; ch++) {
+        const sample = sampleChannel(result, ch, len, 50000);
+        sample.sort((a, b) => a - b);
+        const loIdx = Math.floor(sample.length * CLIP_PCT);
+        const hiIdx = Math.floor(sample.length * (1 - CLIP_PCT)) - 1;
+        lo[ch] = sample[Math.max(0, loIdx)];
+        hi[ch] = sample[Math.min(sample.length - 1, hiIdx)];
+    }
+
+    // ── 7. Normalize to [0, 255] with percentile clipping ──────────────────
+    const range0 = (hi[0] - lo[0]) + EPS;
+    const range1 = (hi[1] - lo[1]) + EPS;
+    const range2 = (hi[2] - lo[2]) + EPS;
 
     let output: Uint8ClampedArray | null = new Uint8ClampedArray(data.length);
     for (let i = 0; i < len; i++) {
-        for (let j = 0; j < 3; j++) {
-            output[i * 4 + j] = ((result[i * 3 + j] - mins[j]) / (maxs[j] - mins[j] + 1e-7)) * 255;
-        }
+        const r = ((result[i * 3] - lo[0]) / range0) * 255;
+        const g = ((result[i * 3 + 1] - lo[1]) / range1) * 255;
+        const b = ((result[i * 3 + 2] - lo[2]) / range2) * 255;
+        output[i * 4] = r < 0 ? 0 : r > 255 ? 255 : r;
+        output[i * 4 + 1] = g < 0 ? 0 : g > 255 ? 255 : g;
+        output[i * 4 + 2] = b < 0 ? 0 : b > 255 ? 255 : b;
         output[i * 4 + 3] = 255;
     }
 
-    // Free result array
     result = null;
 
-    // @ts-ignore
+    // @ts-ignore — typed array transferred to ImageData
     const finalImage = new ImageData(output, imageData.width, imageData.height);
-    output = null; // Free typed array
+    output = null;
     return finalImage;
 }
 
-// Global scope for web worker
+/** Reservoir sample of one channel from the result Float32Array. */
+function sampleChannel(arr: Float32Array, ch: number, len: number, sampleSize: number): number[] {
+    const target = Math.min(sampleSize, len);
+    const out: number[] = new Array(target);
+    if (len <= target) {
+        for (let i = 0; i < len; i++) out[i] = arr[i * 3 + ch];
+        return out;
+    }
+    const step = len / target;
+    for (let i = 0; i < target; i++) {
+        const idx = Math.floor(i * step);
+        out[i] = arr[idx * 3 + ch];
+    }
+    return out;
+}
+
+// ── Worker entry point ─────────────────────────────────────────────────────
+
 const ctx: Worker = self as any;
 
-ctx.onmessage = async (e: MessageEvent<ExtendedWorkerRequest>) => {
+ctx.onmessage = async (e: MessageEvent<WorkerRequest>) => {
     const req = e.data;
 
     try {
@@ -129,35 +193,28 @@ ctx.onmessage = async (e: MessageEvent<ExtendedWorkerRequest>) => {
 
             let w = imageData.width;
             let h = imageData.height;
-            let targetImageData = imageData;
+            const targetImageData = imageData;
 
-            // Scale down using OffscreenCanvas if needed
             if (scaleDown && (w > MAX_PX || h > MAX_PX)) {
                 const ratio = Math.min(MAX_PX / w, MAX_PX / h);
                 w = Math.floor(w * ratio);
                 h = Math.floor(h * ratio);
-
-                // We'll trust the main thread scaled it or we just process this size.
-                // Actually, let's let the main thread do the createImageBitmap and scaling to prevent
-                // complex async logic here if ImageData is already passed.
-                // The main thread should send the scaled ImageData.
-                // If not, we process what we get.
             }
 
             const modeKeys = Object.keys(MODES);
-            const processedImages: { modeName: string, imageData: ImageData }[] = [];
+            const processedImages: { modeName: string; imageData: ImageData }[] = [];
 
             for (let i = 0; i < modeKeys.length; i++) {
                 const mode = modeKeys[i];
-                const pct = Math.round(((i) / modeKeys.length) * 100);
+                const pct = Math.round((i / modeKeys.length) * 100);
 
                 ctx.postMessage({
                     type: 'PROGRESS',
                     progress: pct,
-                    message: `GENERANDO MATRIZ ${mode}...`
+                    message: `GENERANDO MATRIZ ${mode}...`,
                 } as WorkerResponse);
 
-                const newImageData = applyDStretch(targetImageData, mode, SIGMA);
+                const newImageData = applyDStretch(targetImageData, mode);
                 processedImages.push({ modeName: mode, imageData: newImageData });
             }
 
@@ -166,70 +223,16 @@ ctx.onmessage = async (e: MessageEvent<ExtendedWorkerRequest>) => {
                 processedImages,
                 baseImageData: targetImageData,
                 width: w,
-                height: h
-            } as WorkerResponse);
-
-        } else if (req.type === 'PROCESS_ADVANCED_FILTER') {
-            const { imageData, filterId, params } = req;
-
-            ctx.postMessage({
-                type: 'PROGRESS',
-                progress: 0,
-                message: `APLICANDO FILTRO...`
-            } as WorkerResponse);
-
-            const resultImageData = processAdvancedFilter(
-                imageData,
-                filterId,
-                params,
-                (pct) => {
-                    ctx.postMessage({
-                        type: 'PROGRESS',
-                        progress: pct,
-                        message: `PROCESANDO... ${pct}%`
-                    } as WorkerResponse);
-                }
-            );
-
-            ctx.postMessage({
-                type: 'SUCCESS',
-                processedImages: [{ modeName: 'ADVANCED', imageData: resultImageData }],
-                baseImageData: imageData, // we don't change the base
-                width: imageData.width,
-                height: imageData.height
-            } as WorkerResponse);
-
-        } else if (req.type === 'GENERATE_ADVANCED_PREVIEWS') {
-            const { previewImageData } = req;
-            const previews: { filterId: string, imageData: ImageData }[] = [];
-
-            for (const filter of ADVANCED_FILTERS) {
-                // Generar con valores por defecto
-                const defaultParams: Record<string, number> = {};
-                for (const p of filter.params) {
-                    defaultParams[p.id] = p.default;
-                }
-                const resImg = processAdvancedFilter(previewImageData, filter.id, defaultParams);
-                previews.push({ filterId: filter.id, imageData: resImg });
-            }
-
-            ctx.postMessage({
-                type: 'ADVANCED_PREVIEWS_SUCCESS',
-                previews
+                height: h,
             } as WorkerResponse);
 
         } else if (req.type === 'CROP' || req.type === 'ROTATE_90') {
-            // For crop and rotate, we assume the main thread sends the NEW base ImageData
-            // and we just re-run all matrices on it.
-            // So this will be handled mostly like INIT_PROCESS by the main thread.
-            // In this version, we will only use INIT_PROCESS for everything to keep it simple,
-            // and main thread provides the cropped/rotated ImageData.
+            // No-op: main thread re-issues INIT_PROCESS with new ImageData
         }
-
     } catch (error: any) {
         ctx.postMessage({
             type: 'ERROR',
-            error: error.message || 'Error processing image'
+            error: error.message || 'Error processing image',
         } as WorkerResponse);
     }
 };
