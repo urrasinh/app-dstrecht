@@ -15,7 +15,6 @@ import { FloatingTools } from './components/FloatingTools';
 import { FreeCrop } from './components/FreeCrop';
 import { Spinner } from './components/Spinner';
 import { AuthGate } from './components/AuthGate';
-import { InstallPrompt } from './components/InstallPrompt';
 import { Feed } from './components/Feed';
 import { UsersList } from './components/UsersList';
 import { PushPermissionBanner } from './components/PushPermissionBanner';
@@ -187,14 +186,17 @@ export default function App() {
     setTimeout(() => setToastMsg(''), 3000);
   };
 
-  // First-login welcome → tutorial trigger
+  // First-login welcome → tutorial trigger (per-email tracking, only for accounts not yet seen)
   useEffect(() => {
     if (!user) return;
-    if (localStorage.getItem('tutorial-completed-v1')) return;
-    const welcomeDone = localStorage.getItem('welcome-completed-v1');
+    const email = (getUserEmail(user) || '').toLowerCase();
+    if (!email) return;
+    const seen = JSON.parse(localStorage.getItem('tutorial-seen-emails') || '[]') as string[];
+    if (seen.includes(email)) return;
+
     const t = setTimeout(() => {
-      if (welcomeDone) setShowTutorial(true);
-      else setShowWelcome(true);
+      // Show welcome first (with install option), then tutorial
+      setShowWelcome(true);
     }, 600);
     return () => clearTimeout(t);
   }, [user]);
@@ -954,6 +956,7 @@ export default function App() {
       ),
       target: '[data-tutorial="donate"]',
       placement: 'bottom',
+      onEnter: () => flashDonateBubble(), // ensure the bubble is visible during this step
     },
     {
       id: 'done',
@@ -970,13 +973,22 @@ export default function App() {
     },
   ];
 
+  const markTutorialSeenForCurrentUser = () => {
+    const email = (getUserEmail(user) || '').toLowerCase();
+    if (!email) return;
+    const list = JSON.parse(localStorage.getItem('tutorial-seen-emails') || '[]') as string[];
+    if (!list.includes(email)) {
+      list.push(email);
+      localStorage.setItem('tutorial-seen-emails', JSON.stringify(list));
+    }
+  };
+
   const handleTutorialDone = () => {
-    localStorage.setItem('tutorial-completed-v1', String(Date.now()));
+    markTutorialSeenForCurrentUser();
     setShowTutorial(false);
   };
 
   const handleWelcomeContinue = () => {
-    localStorage.setItem('welcome-completed-v1', String(Date.now()));
     setShowWelcome(false);
     setShowTutorial(true);
   };
@@ -1000,7 +1012,6 @@ export default function App() {
         onSkip={handleTutorialDone}
       />
       <DonateModal isOpen={showDonate} onClose={() => setShowDonate(false)} />
-      <InstallPrompt />
       {/* Toast Notification */}
       <div id="toast" className={`fixed left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xl transition-all duration-300 z-[200] flex items-center gap-2 ${toastMsg ? 'top-5' : '-top-24'}`}>
         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

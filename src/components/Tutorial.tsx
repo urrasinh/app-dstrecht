@@ -37,7 +37,6 @@ interface TargetRect {
 export const Tutorial: React.FC<TutorialProps> = ({ isOpen, steps, onComplete, onSkip }) => {
     const [stepIdx, setStepIdx] = useState(0);
     const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
-    const [showSkipConfirm, setShowSkipConfirm] = useState(false);
     const [tooltipReady, setTooltipReady] = useState(false);
     const tooltipRef = useRef<HTMLDivElement>(null);
     const enteredStepRef = useRef<string | null>(null);
@@ -191,7 +190,7 @@ export const Tutorial: React.FC<TutorialProps> = ({ isOpen, steps, onComplete, o
                                 {stepIdx + 1} de {steps.length}
                             </span>
                             <button
-                                onClick={() => setShowSkipConfirm(true)}
+                                onClick={onSkip}
                                 className="text-[10px] text-slate-400 hover:text-white uppercase tracking-wider"
                             >
                                 Saltar
@@ -231,31 +230,6 @@ export const Tutorial: React.FC<TutorialProps> = ({ isOpen, steps, onComplete, o
                 )}
             </div>
 
-            {/* Skip confirm modal */}
-            {showSkipConfirm && (
-                <div className="fixed inset-0 z-[600] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-xs w-full p-5 shadow-2xl">
-                        <h3 className="text-base font-bold text-white">¿Saltar tutorial?</h3>
-                        <p className="text-xs text-slate-400 mt-2 leading-relaxed">
-                            Puedes volver a verlo desde el menú lateral cuando quieras.
-                        </p>
-                        <div className="flex gap-2 mt-4">
-                            <button
-                                onClick={() => setShowSkipConfirm(false)}
-                                className="flex-1 py-2.5 rounded-lg bg-slate-800 text-slate-300 text-sm font-semibold"
-                            >
-                                Continuar
-                            </button>
-                            <button
-                                onClick={() => { setShowSkipConfirm(false); onSkip(); }}
-                                className="flex-1 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold"
-                            >
-                                Saltar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </>
     );
 };
