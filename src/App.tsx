@@ -279,9 +279,12 @@ export default function App() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const inputEl = e.target;
     const file = inputEl.files?.[0];
-    // Allow re-selecting the same file by resetting the input value immediately
-    inputEl.value = '';
     if (!file) return;
+
+    const t0 = performance.now();
+    const log = (step: string, extra?: unknown) =>
+      console.debug(`[upload +${Math.round(performance.now() - t0)}ms] ${step}`, extra ?? '');
+    log('start', { name: file.name, size: file.size, type: file.type });
 
     // Safety net: if anything hangs, force-clear processing state after 60s
     let safetyTimer: number | undefined = window.setTimeout(() => {
@@ -289,39 +292,46 @@ export default function App() {
       showToast("La subida tardó demasiado. Intenta de nuevo.");
     }, 60000);
     const clearSafety = () => { if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = undefined; } };
+    const finishUpload = () => {
+      clearSafety();
+      // Reset input AFTER everything so Safari doesn't lose the File reference mid-flow
+      try { inputEl.value = ''; } catch { /* noop */ }
+    };
 
     setIsProcessing(true);
     setLoadingProgress(0);
     setLoadingText("ANALIZANDO IMAGEN...");
+
+    // Pre-scaling cap: prevents Safari canvas memory failures on 12+ MP photos
+    const MAX_PROCESS_PX = 2400;
 
     try {
       // 1. Intentar extraer metadatos de forma asíncrona pero sin bloquear la carga si falla
       let orientation = 1;
       let exifSnapshot = { make: '', model: '', date: '', latDD: null as number | null, lonDD: null as number | null };
       try {
+        log('exif start');
         const r = await extractExif(file);
         orientation = r.orientation;
         exifSnapshot = { make: r.data.make, model: r.data.model, date: r.data.date, latDD: r.data.latDD, lonDD: r.data.lonDD };
+        log('exif done', { orientation });
       } catch (exifErr) {
         console.warn("Exif extraction failed, using default orientation 1", exifErr);
       }
 
-      // Encolar la imagen ORIGINAL para subir a Drive/Sheets
+      // Encolar la imagen ORIGINAL para subir a Drive/Sheets (NO bloquea el render local)
       if (user) {
-        try {
-          await uploadSync.queue({
-            userEmail: getUserEmail(user) || 'unknown',
-            fileName: file.name,
-            mimeType: file.type || 'image/jpeg',
-            fileBlob: file,
-            lat: exifSnapshot.latDD,
-            lon: exifSnapshot.lonDD,
-            camera: `${exifSnapshot.make} ${exifSnapshot.model}`.trim(),
-            captureDate: exifSnapshot.date,
-          });
-        } catch (qErr) {
-          console.warn('No se pudo encolar la subida', qErr);
-        }
+        // Fire-and-forget: do not await, so a backend hang/error never blocks the upload UI
+        Promise.resolve().then(() => uploadSync.queue({
+          userEmail: getUserEmail(user) || 'unknown',
+          fileName: file.name,
+          mimeType: file.type || 'image/jpeg',
+          fileBlob: file,
+          lat: exifSnapshot.latDD,
+          lon: exifSnapshot.lonDD,
+          camera: `${exifSnapshot.make} ${exifSnapshot.model}`.trim(),
+          captureDate: exifSnapshot.date,
+        })).catch(qErr => console.warn('No se pudo encolar la subida', qErr));
       }
 
       setLoadingText("DECODIFICANDO IMAGEN...");
@@ -330,14 +340,16 @@ export default function App() {
       const reader = new FileReader();
 
       reader.onerror = () => {
-        clearSafety();
+        log('reader.onerror');
+        finishUpload();
         setIsProcessing(false);
         showToast("No se pudo leer el archivo. Intenta otra vez.");
       };
 
       reader.onload = (event) => {
+        log('reader.onload');
         if (!event.target?.result) {
-          clearSafety();
+          finishUpload();
           setIsProcessing(false);
           showToast("Error leyendo archivo");
           return;
@@ -345,57 +357,91 @@ export default function App() {
 
         const img = new Image();
         img.onerror = () => {
-          clearSafety();
+          log('img.onerror');
+          finishUpload();
           setIsProcessing(false);
           showToast("Formato de imagen inválido o no soportado nativamente por tu navegador.");
         };
 
         img.onload = () => {
+          log('img.onload', { iw: img.width, ih: img.height });
           try {
             const oCanvas = document.createElement('canvas');
             const oCtx = oCanvas.getContext('2d')!;
             let iw = img.width, ih = img.height;
 
-            if ([5, 6, 7, 8].includes(orientation)) { oCanvas.width = ih; oCanvas.height = iw; }
-            else { oCanvas.width = iw; oCanvas.height = ih; }
+            // Pre-scale if too large (prevents Safari canvas memory failures)
+            const totalPx = iw * ih;
+            const tooBig = totalPx > 6_000_000 || iw > MAX_PROCESS_PX || ih > MAX_PROCESS_PX;
+            const ratio = tooBig ? Math.min(MAX_PROCESS_PX / iw, MAX_PROCESS_PX / ih) : 1;
+            const scaledIW = Math.floor(iw * ratio);
+            const scaledIH = Math.floor(ih * ratio);
+            if (tooBig) log('pre-scale', { from: [iw, ih], to: [scaledIW, scaledIH] });
+
+            // Output canvas dims after rotation
+            if ([5, 6, 7, 8].includes(orientation)) {
+              oCanvas.width = scaledIH; oCanvas.height = scaledIW;
+            } else {
+              oCanvas.width = scaledIW; oCanvas.height = scaledIH;
+            }
 
             oCtx.save();
             switch (orientation) {
-              case 2: oCtx.translate(iw, 0); oCtx.scale(-1, 1); break;
-              case 3: oCtx.translate(iw, ih); oCtx.rotate(Math.PI); break;
-              case 4: oCtx.translate(0, ih); oCtx.scale(1, -1); break;
+              case 2: oCtx.translate(scaledIW, 0); oCtx.scale(-1, 1); break;
+              case 3: oCtx.translate(scaledIW, scaledIH); oCtx.rotate(Math.PI); break;
+              case 4: oCtx.translate(0, scaledIH); oCtx.scale(1, -1); break;
               case 5: oCtx.rotate(0.5 * Math.PI); oCtx.scale(1, -1); break;
-              case 6: oCtx.rotate(0.5 * Math.PI); oCtx.translate(0, -ih); break;
-              case 7: oCtx.rotate(0.5 * Math.PI); oCtx.translate(iw, -ih); oCtx.scale(-1, 1); break;
-              case 8: oCtx.rotate(-0.5 * Math.PI); oCtx.translate(-iw, 0); break;
+              case 6: oCtx.rotate(0.5 * Math.PI); oCtx.translate(0, -scaledIH); break;
+              case 7: oCtx.rotate(0.5 * Math.PI); oCtx.translate(scaledIW, -scaledIH); oCtx.scale(-1, 1); break;
+              case 8: oCtx.rotate(-0.5 * Math.PI); oCtx.translate(-scaledIW, 0); break;
             }
-            // Use smoothing for high quality downscaling before data processing
             oCtx.imageSmoothingEnabled = true;
             oCtx.imageSmoothingQuality = 'high';
-            oCtx.drawImage(img, 0, 0, iw, ih);
+            oCtx.drawImage(img, 0, 0, scaledIW, scaledIH);
             oCtx.restore();
+            log('canvas drawn', { w: oCanvas.width, h: oCanvas.height });
+
+            // Convert to JPEG (with safety: empty result detection)
+            let dataUrl: string;
+            try {
+              dataUrl = oCanvas.toDataURL('image/jpeg', 0.92);
+            } catch (encErr) {
+              console.error('toDataURL threw', encErr);
+              finishUpload();
+              setIsProcessing(false);
+              showToast("Error codificando la imagen. Intenta con una foto más pequeña.");
+              return;
+            }
+            if (!dataUrl || dataUrl.length < 100) {
+              log('toDataURL returned empty/invalid', { length: dataUrl?.length });
+              finishUpload();
+              setIsProcessing(false);
+              showToast("Imagen muy grande o con formato no compatible con Safari.");
+              return;
+            }
+            log('toDataURL ok', { dataUrlLen: dataUrl.length });
 
             const rotatedImg = new Image();
             rotatedImg.onload = () => {
-              clearSafety();
+              log('rotatedImg.onload → ResolutionModal');
+              finishUpload();
               setPendingRotatedImg(rotatedImg);
               setOriginalDimensions(rotatedImg.width, rotatedImg.height);
               setIsProcessing(false);
               setShowResModal(true);
             };
             rotatedImg.onerror = () => {
-              clearSafety();
+              log('rotatedImg.onerror');
+              finishUpload();
               setIsProcessing(false);
               showToast("Error generando vista previa de la imagen.");
             };
 
-            // Generate highest quality JPEG to pass to canvas to strip away exotic properties
-            // from some WEBP/HEIC/RAWs that Safari/Chrome might struggle with in Canvas get/putImageData
-            rotatedImg.src = oCanvas.toDataURL('image/jpeg', 1.0);
+            rotatedImg.src = dataUrl;
 
           } catch (canvasErr) {
             console.error("Canvas manipulation failed", canvasErr);
-            clearSafety();
+            finishUpload();
             setIsProcessing(false);
             showToast("Error procesando imagen para web.");
           }
@@ -407,7 +453,7 @@ export default function App() {
 
     } catch (error) {
       console.error("Upload handler total failure", error);
-      clearSafety();
+      finishUpload();
       setIsProcessing(false);
       showToast("Error de subida inesperado.");
     }
