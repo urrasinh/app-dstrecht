@@ -201,22 +201,31 @@ export default function App() {
     return () => clearTimeout(t);
   }, [user]);
 
-  // Pop the donate bubble for 30s
-  const flashDonateBubble = useCallback(() => {
+  // Pop the donate bubble for `durationMs` ms (default 5s) then hide it.
+  // Used after a download and after the welcome/tutorial closes.
+  const flashDonateBubble = useCallback((durationMs = 5000) => {
     setDonateBubbleVisible(true);
     if (donateHideTimerRef.current) clearTimeout(donateHideTimerRef.current);
     donateHideTimerRef.current = window.setTimeout(() => {
       setDonateBubbleVisible(false);
       donateHideTimerRef.current = null;
-    }, 30000);
+    }, durationMs);
   }, []);
 
-  // Show donate bubble for 30s when first image loads (defer if tutorial/welcome covers screen)
+  // While welcome/tutorial is active → keep donate bubble visible (no timer).
+  // When they both close → flash 5s and hide.
   useEffect(() => {
-    if (!baseImage) return;
-    if (showWelcome || showTutorial) return;
-    flashDonateBubble();
-  }, [baseImage, showWelcome, showTutorial, flashDonateBubble]);
+    if (showWelcome || showTutorial) {
+      setDonateBubbleVisible(true);
+      if (donateHideTimerRef.current) {
+        clearTimeout(donateHideTimerRef.current);
+        donateHideTimerRef.current = null;
+      }
+    } else if (baseImage) {
+      // Welcome/tutorial just closed and we have an image: 5s then hide
+      flashDonateBubble(5000);
+    }
+  }, [showWelcome, showTutorial, baseImage, flashDonateBubble]);
 
   // Re-process current DStretch mode with new params (debounced ~250ms)
   const onDstretchParamChange = useCallback((gain: number, clip: number) => {
@@ -956,7 +965,7 @@ export default function App() {
       ),
       target: '[data-tutorial="donate"]',
       placement: 'bottom',
-      onEnter: () => flashDonateBubble(), // ensure the bubble is visible during this step
+      // No onEnter — the outer effect keeps the bubble visible during the whole tutorial.
     },
     {
       id: 'done',
@@ -1060,9 +1069,9 @@ export default function App() {
       {/* Header */}
       <header className="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 z-10 shrink-0 shadow-md">
         <div className="flex items-center gap-2.5">
-          <div className="flex items-center justify-center gap-1.5">
+          <div className="flex flex-col items-center justify-center leading-none">
             <img src="/collasuyo.svg" alt="Logo" className="h-7" />
-            <span className="text-red-500 font-bold text-xs mt-1.5 tracking-tighter uppercase">App</span>
+            <span className="text-red-500 font-bold text-[9px] tracking-[0.18em] uppercase mt-0.5">App</span>
           </div>
           {(uploadSync.pending > 0 || !uploadSync.online) && (
             <div
@@ -1145,21 +1154,19 @@ export default function App() {
                 {exifData.latDD ? `${exifData.latDD.toFixed(4)}, ${exifData.lonDD?.toFixed(4)}` : 'Sin GPS'}
               </span>
             </div>
-            <button
-              data-tutorial="donate"
-              onClick={() => setShowDonate(true)}
-              title="Regálame un café"
-              aria-hidden={!donateBubbleVisible}
-              tabIndex={donateBubbleVisible ? 0 : -1}
-              className={`backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] flex items-center gap-1.5 border shadow-lg uppercase tracking-wider font-semibold transition-all duration-300
-                ${donateBubbleVisible ? 'opacity-100 translate-y-0 pointer-events-auto' : 'opacity-0 -translate-y-1 pointer-events-none'}
-                ${hasDownloaded
+            {donateBubbleVisible && (
+              <button
+                data-tutorial="donate"
+                onClick={() => setShowDonate(true)}
+                title="Regálame un café"
+                className={`backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] flex items-center gap-1.5 border shadow-lg uppercase tracking-wider font-semibold animate-in fade-in slide-in-from-top-1 duration-300 ${hasDownloaded
                   ? 'bg-amber-500/95 hover:bg-amber-500 text-slate-900 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
                   : 'bg-slate-900/75 hover:bg-slate-800 text-slate-400 border-slate-700'}`}
-            >
-              <span className="text-sm leading-none">☕</span>
-              <span>Regálame un café</span>
-            </button>
+              >
+                <span className="text-sm leading-none">☕</span>
+                <span>Regálame un café</span>
+              </button>
+            )}
           </div>
         )}
 
