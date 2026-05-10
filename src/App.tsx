@@ -1071,7 +1071,7 @@ export default function App() {
         <div className="flex items-center gap-2.5">
           <div className="flex flex-col items-center justify-center leading-none">
             <img src="/collasuyo.svg" alt="Logo" className="h-7" />
-            <span className="text-red-500 font-bold text-[9px] tracking-[0.18em] uppercase mt-0.5">App</span>
+            <span className="text-red-500 font-bold text-[9px] tracking-[0.18em] uppercase mt-0.5">DStretch App</span>
           </div>
           {(uploadSync.pending > 0 || !uploadSync.online) && (
             <div
