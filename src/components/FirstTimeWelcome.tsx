@@ -7,7 +7,8 @@ interface BIPEvent extends Event {
 
 interface FirstTimeWelcomeProps {
     isOpen: boolean;
-    onContinue: () => void;
+    onStartTutorial: () => void;
+    onSkipTutorial: () => void;
 }
 
 function isIOSSafari(): boolean {
@@ -25,7 +26,7 @@ function isInstalled(): boolean {
         (navigator as { standalone?: boolean }).standalone === true;
 }
 
-export const FirstTimeWelcome: React.FC<FirstTimeWelcomeProps> = ({ isOpen, onContinue }) => {
+export const FirstTimeWelcome: React.FC<FirstTimeWelcomeProps> = ({ isOpen, onStartTutorial, onSkipTutorial }) => {
     const [bipEvent, setBipEvent] = useState<BIPEvent | null>(null);
     const [installed, setInstalled] = useState(false);
     const [installing, setInstalling] = useState(false);
@@ -122,12 +123,30 @@ export const FirstTimeWelcome: React.FC<FirstTimeWelcomeProps> = ({ isOpen, onCo
                     )}
                 </div>
 
-                <button
-                    onClick={onContinue}
-                    className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-sm font-bold py-3.5 rounded-xl transition-colors uppercase tracking-wider"
-                >
-                    Empezar
-                </button>
+                {/* Two choices */}
+                <div className="flex flex-col gap-2 mt-1">
+                    <p className="text-xs text-slate-400 text-center mb-1">
+                        ¿Cómo quieres empezar?
+                    </p>
+                    <button
+                        onClick={onStartTutorial}
+                        className="w-full bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-sm font-bold py-3.5 rounded-xl transition-colors uppercase tracking-wider flex items-center justify-center gap-2"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.5M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.5h.01" />
+                        </svg>
+                        Ver tutorial
+                    </button>
+                    <button
+                        onClick={onSkipTutorial}
+                        className="w-full bg-slate-800 hover:bg-slate-700 active:bg-slate-700 text-slate-200 text-sm font-bold py-3.5 rounded-xl transition-colors uppercase tracking-wider flex items-center justify-center gap-2 border border-slate-700"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        </svg>
+                        Cargar foto directamente
+                    </button>
+                </div>
             </div>
         </div>
     );

@@ -997,9 +997,15 @@ export default function App() {
     setShowTutorial(false);
   };
 
-  const handleWelcomeContinue = () => {
+  const handleWelcomeStartTutorial = () => {
     setShowWelcome(false);
     setShowTutorial(true);
+  };
+
+  const handleWelcomeSkipTutorial = () => {
+    // User opted out of the tutorial — mark seen so it doesn't reappear
+    markTutorialSeenForCurrentUser();
+    setShowWelcome(false);
   };
 
   if (authLoading) {
@@ -1013,7 +1019,11 @@ export default function App() {
 
   return (
     <>
-      <FirstTimeWelcome isOpen={showWelcome} onContinue={handleWelcomeContinue} />
+      <FirstTimeWelcome
+        isOpen={showWelcome}
+        onStartTutorial={handleWelcomeStartTutorial}
+        onSkipTutorial={handleWelcomeSkipTutorial}
+      />
       <Tutorial
         isOpen={showTutorial}
         steps={tutorialSteps}
