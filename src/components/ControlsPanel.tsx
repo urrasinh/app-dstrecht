@@ -40,10 +40,12 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
     const activeFilterDef = VISUAL_FILTERS[currentFilter];
     const hasParams = activeFilterDef && activeFilterDef.params.length > 0;
 
-    // Auto-expand when there's something adjustable (visual filter params or DStretch params)
+    // The panel no longer auto-expands when changing mode/filter.
+    // It only opens via the drag handle or the "Ajustes disponibles" hint button.
+    // We still auto-collapse if the user removes all adjustables (ORIGINAL + Normal)
+    // so the editor area gets the screen space back.
     useEffect(() => {
-        if (hasParams || dstretchHasAdjustables) setPanelState('full');
-        else setPanelState('compact');
+        if (!hasParams && !dstretchHasAdjustables) setPanelState('compact');
     }, [currentFilter, hasParams, dstretchHasAdjustables, currentMode]);
 
     if (!isVisible) return null;
