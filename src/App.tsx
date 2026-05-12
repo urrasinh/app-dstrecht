@@ -186,6 +186,15 @@ export default function App() {
     setTimeout(() => setToastMsg(''), 3000);
   };
 
+  // Surface upload-sync errors to the user (otherwise they fail silently)
+  const prevSyncErrorRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (uploadSync.lastError && uploadSync.lastError !== prevSyncErrorRef.current) {
+      showToast(`Subida falló: ${uploadSync.lastError}`);
+    }
+    prevSyncErrorRef.current = uploadSync.lastError;
+  }, [uploadSync.lastError]);
+
   // First-login welcome → tutorial trigger (per-email tracking, only for accounts not yet seen)
   useEffect(() => {
     if (!user) return;
@@ -1086,8 +1095,20 @@ export default function App() {
           {(uploadSync.pending > 0 || !uploadSync.online) && (
             <div
               onClick={() => uploadSync.online && uploadSync.sync()}
-              className={`text-[10px] font-bold px-2 py-1 rounded-md border flex items-center gap-1 cursor-pointer ${uploadSync.online ? 'text-amber-400 bg-amber-950/40 border-amber-900/50' : 'text-slate-400 bg-slate-800 border-slate-700'}`}
-              title={uploadSync.online ? 'Click para sincronizar' : 'Sin conexión — se sincronizará al volver'}
+              className={`text-[10px] font-bold px-2 py-1 rounded-md border flex items-center gap-1 cursor-pointer ${
+                !uploadSync.online
+                  ? 'text-slate-400 bg-slate-800 border-slate-700'
+                  : uploadSync.lastError
+                    ? 'text-red-400 bg-red-950/40 border-red-900/50'
+                    : 'text-amber-400 bg-amber-950/40 border-amber-900/50'
+              }`}
+              title={
+                !uploadSync.online
+                  ? 'Sin conexión — se sincronizará al volver'
+                  : uploadSync.lastError
+                    ? `Error: ${uploadSync.lastError} — click para reintentar`
+                    : 'Click para sincronizar'
+              }
             >
               {uploadSync.syncing && <span className="w-2 h-2 rounded-full border border-amber-400 border-t-transparent animate-spin"></span>}
               {!uploadSync.online && (

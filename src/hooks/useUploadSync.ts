@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { auth } from '../firebase';
 import { enqueueUpload, listQueue, syncQueue, type QueuedUpload } from '../utils/uploadQueue';
 
-export function useUploadSync() {
+export function useUploadSync(onSyncFail?: (msg: string) => void) {
     const [pending, setPending] = useState(0);
     const [syncing, setSyncing] = useState(false);
     const [online, setOnline] = useState(navigator.onLine);
+    const [lastError, setLastError] = useState<string | null>(null);
 
     const refresh = useCallback(async () => {
         const items = await listQueue();
@@ -17,12 +18,18 @@ export function useUploadSync() {
         if (!auth.currentUser) return;
         setSyncing(true);
         try {
-            await syncQueue(async () => auth.currentUser ? auth.currentUser.getIdToken() : null);
+            const result = await syncQueue(async () => auth.currentUser ? auth.currentUser.getIdToken() : null);
+            if (result.failed > 0 && result.lastError) {
+                setLastError(result.lastError);
+                onSyncFail?.(result.lastError);
+            } else if (result.sent > 0) {
+                setLastError(null);
+            }
         } finally {
             setSyncing(false);
             await refresh();
         }
-    }, [syncing, refresh]);
+    }, [syncing, refresh, onSyncFail]);
 
     const queue = useCallback(async (item: Omit<QueuedUpload, 'id' | 'createdAt' | 'attempts'>) => {
         await enqueueUpload(item);
@@ -42,5 +49,5 @@ export function useUploadSync() {
         };
     }, [refresh, sync]);
 
-    return { pending, syncing, online, queue, sync };
+    return { pending, syncing, online, queue, sync, lastError };
 }

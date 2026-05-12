@@ -94,8 +94,16 @@ async function postUpload(item: QueuedUpload, idToken: string): Promise<{ driveL
         }),
     });
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
+    if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status}${txt ? ' — ' + txt.slice(0, 120) : ''}`);
+    }
+    let json: any;
+    try {
+        json = await res.json();
+    } catch {
+        throw new Error('Backend devolvió respuesta no-JSON (¿despliegue desactualizado?)');
+    }
     if (!json.ok) throw new Error(json.error || 'Backend error');
     return { driveLink: json.driveLink };
 }
@@ -104,18 +112,20 @@ export type SyncResult = {
     pending: number;
     sent: number;
     failed: number;
+    lastError?: string;
 };
 
 export async function syncQueue(getIdToken: () => Promise<string | null>): Promise<SyncResult> {
     const items = await listQueue();
     if (items.length === 0) return { pending: 0, sent: 0, failed: 0 };
-    if (!navigator.onLine) return { pending: items.length, sent: 0, failed: 0 };
+    if (!navigator.onLine) return { pending: items.length, sent: 0, failed: 0, lastError: 'Sin conexión' };
 
     const idToken = await getIdToken();
-    if (!idToken) return { pending: items.length, sent: 0, failed: 0 };
+    if (!idToken) return { pending: items.length, sent: 0, failed: 0, lastError: 'Sin token de auth' };
 
     let sent = 0;
     let failed = 0;
+    let lastError: string | undefined;
 
     for (const item of items) {
         try {
@@ -125,10 +135,11 @@ export async function syncQueue(getIdToken: () => Promise<string | null>): Promi
         } catch (err: any) {
             item.attempts++;
             item.lastError = err.message || String(err);
+            lastError = item.lastError;
             await updateQueueItem(item);
             failed++;
         }
     }
 
-    return { pending: failed, sent, failed };
+    return { pending: failed, sent, failed, lastError };
 }
