@@ -74,17 +74,21 @@ const GUEST_EMAIL_KEY = 'auth-guest-email';
 /**
  * Quick guest login: declare an email without verification.
  * Uses Firebase Anonymous Auth and stores the declared email as displayName.
- * Useful for field workers who want to start uploading immediately.
- * Note: this email is NOT verified — admin features stay locked behind Google login.
+ *
+ * IMPORTANT: writes localStorage BEFORE signInAnonymously so that the first
+ * onAuthStateChanged callback (where user.email=null, displayName=null) can
+ * still resolve the declared email via getUserEmail(). Otherwise the welcome
+ * + tutorial trigger effect bails out early.
  */
 export async function loginAsGuestWithEmail(email: string): Promise<void> {
     const cleaned = email.trim();
     if (!cleaned) throw new Error('Correo requerido');
+    // Persist email FIRST so onAuthStateChanged sees it
+    localStorage.setItem(GUEST_EMAIL_KEY, cleaned);
     const cred = await signInAnonymously(auth);
     if (cred.user) {
         await updateProfile(cred.user, { displayName: cleaned });
     }
-    localStorage.setItem(GUEST_EMAIL_KEY, cleaned);
 }
 
 /** Returns the stable email for the user: real email (verified) or guest displayName. */
