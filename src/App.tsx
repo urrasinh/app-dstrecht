@@ -1088,9 +1088,8 @@ export default function App() {
       {/* Header */}
       <header className="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 z-10 shrink-0 shadow-md">
         <div className="flex items-center gap-2.5">
-          <div className="flex flex-col items-center justify-center leading-none">
-            <img src="/collasuyo.svg" alt="Logo" className="h-7" />
-            <span className="text-red-500 font-bold text-[9px] tracking-[0.18em] uppercase mt-0.5">DStretch App</span>
+          <div className="flex items-center leading-none">
+            <img src="/paqarina-horizontal.png" alt="Paqarina" className="h-8 object-contain" />
           </div>
           {(uploadSync.pending > 0 || !uploadSync.online) && (
             <div

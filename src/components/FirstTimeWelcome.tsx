@@ -68,7 +68,7 @@ export const FirstTimeWelcome: React.FC<FirstTimeWelcomeProps> = ({ isOpen, onSt
             <div className="w-full max-w-md flex flex-col gap-5">
                 {/* Hero */}
                 <div className="text-center">
-                    <img src="/collasuyo.svg" alt="Logo" className="h-16 mx-auto mb-3" />
+                    <img src="/paqarina-vertical.png" alt="Paqarina" className="h-24 mx-auto mb-3 object-contain" />
                     <h1 className="text-2xl font-bold text-white tracking-tight">¡Bienvenido!</h1>
                     <p className="text-sm text-slate-400 mt-2 leading-relaxed">
                         Filtro DStretch es una herramienta para realzar pictografías y arte rupestre

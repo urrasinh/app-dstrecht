@@ -1,6 +1,6 @@
 export const Spinner: React.FC<{ progress: number; message: string }> = ({ progress, message }) => (
     <div className="fixed inset-0 bg-black/95 z-[100] flex flex-col items-center justify-center backdrop-blur-sm text-center p-5">
-        <img src="filtro-collasuyo.svg" alt="Logo" className="mb-5 h-20" />
+        <img src="/paqarina-vertical.png" alt="Paqarina" className="mb-5 h-32 object-contain" />
         <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-red-500 mb-5"></div>
         <p className="text-sm font-bold text-red-100 tracking-widest">{message}</p>
         <p className="text-red-400 text-[18px] mt-2 font-mono font-bold">{progress}%</p>
