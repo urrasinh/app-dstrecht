@@ -188,9 +188,9 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
                                     min={1} max={50} step={0.5}
                                     value={dstretchGain}
                                     onChange={e => onDstretchParamChange(parseFloat(e.target.value), dstretchClip)}
-                                    className="w-full h-2 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-ocre-400 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-crema-50 [&::-webkit-slider-thumb]:shadow-lg"
+                                    className="w-full h-2 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-burdeo-600 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-crema-100 [&::-webkit-slider-thumb]:shadow-lg"
                                     style={{
-                                        background: `linear-gradient(to right, rgb(59 130 246) 0%, rgb(59 130 246) ${((dstretchGain - 1) / 49) * 100}%, rgb(51 65 85) ${((dstretchGain - 1) / 49) * 100}%, rgb(51 65 85) 100%)`
+                                        background: `linear-gradient(to right, rgb(173 63 83) 0%, rgb(173 63 83) ${((dstretchGain - 1) / 49) * 100}%, rgb(62 48 36) ${((dstretchGain - 1) / 49) * 100}%, rgb(62 48 36) 100%)`
                                     }}
                                 />
                             </div>
@@ -208,9 +208,9 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
                                     min={0} max={5} step={0.05}
                                     value={dstretchClip * 100}
                                     onChange={e => onDstretchParamChange(dstretchGain, parseFloat(e.target.value) / 100)}
-                                    className="w-full h-2 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-ocre-400 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-crema-50 [&::-webkit-slider-thumb]:shadow-lg"
+                                    className="w-full h-2 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-burdeo-600 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-crema-100 [&::-webkit-slider-thumb]:shadow-lg"
                                     style={{
-                                        background: `linear-gradient(to right, rgb(59 130 246) 0%, rgb(59 130 246) ${(dstretchClip * 100 / 5) * 100}%, rgb(51 65 85) ${(dstretchClip * 100 / 5) * 100}%, rgb(51 65 85) 100%)`
+                                        background: `linear-gradient(to right, rgb(173 63 83) 0%, rgb(173 63 83) ${(dstretchClip * 100 / 5) * 100}%, rgb(62 48 36) ${(dstretchClip * 100 / 5) * 100}%, rgb(62 48 36) 100%)`
                                     }}
                                 />
                             </div>
@@ -256,9 +256,9 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
                                             min={param.min} max={param.max} step={param.step}
                                             value={val}
                                             onChange={(e) => onFilterParamChange(currentFilter, param.id, parseFloat(e.target.value))}
-                                            className="w-full h-2 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-ocre-500 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-crema-50 [&::-webkit-slider-thumb]:shadow-lg"
+                                            className="w-full h-2 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-ocre-400 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-crema-100 [&::-webkit-slider-thumb]:shadow-lg"
                                             style={{
-                                                background: `linear-gradient(to right, rgb(16 185 129) 0%, rgb(16 185 129) ${pct}%, rgb(51 65 85) ${pct}%, rgb(51 65 85) 100%)`
+                                                background: `linear-gradient(to right, rgb(201 168 97) 0%, rgb(201 168 97) ${pct}%, rgb(62 48 36) ${pct}%, rgb(62 48 36) 100%)`
                                             }}
                                         />
                                     </div>
