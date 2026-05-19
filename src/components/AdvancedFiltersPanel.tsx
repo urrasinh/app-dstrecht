@@ -65,17 +65,17 @@ export function AdvancedFiltersPanel({
         <div className="fixed inset-0 z-[100] flex flex-col justify-end pointer-events-none">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
 
-            <div className="bg-slate-900 w-full rounded-t-3xl border-t border-slate-700 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] pointer-events-auto flex flex-col max-h-[85vh] transition-transform duration-300 transform translate-y-0">
+            <div className="bg-tierra-900 w-full rounded-t-3xl border-t border-tierra-700 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] pointer-events-auto flex flex-col max-h-[85vh] transition-transform duration-300 transform translate-y-0">
 
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-tierra-800 shrink-0">
                     <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-burdeo-600" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
                         </svg>
                         Filtros Avanzados
                     </h2>
-                    <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors">
+                    <button onClick={onClose} className="p-2 text-crema-400 hover:text-white hover:bg-tierra-800 rounded-full transition-colors">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -85,14 +85,14 @@ export function AdvancedFiltersPanel({
                 <div className="flex flex-1 overflow-hidden min-h-0">
 
                     {/* Categories Sidebar */}
-                    <div className="w-20 border-r border-slate-800 flex flex-col items-center py-4 gap-4 overflow-y-auto shrink-0 bg-slate-950/50">
+                    <div className="w-20 border-r border-tierra-800 flex flex-col items-center py-4 gap-4 overflow-y-auto shrink-0 bg-tierra-950/50">
                         {CATEGORIES.map(cat => (
                             <button
                                 key={cat.id}
                                 onClick={() => setActiveCategory(cat.id)}
                                 className={`p-3 rounded-2xl flex flex-col items-center gap-1.5 transition-all ${activeCategory === cat.id
-                                    ? 'bg-red-600 text-white shadow-lg shadow-red-900/30'
-                                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                                    ? 'bg-burdeo-700 text-white shadow-lg shadow-burdeo-900/30'
+                                    : 'text-crema-400 hover:bg-tierra-800 hover:text-crema-200'
                                     }`}
                                 title={cat.label}
                             >
@@ -103,7 +103,7 @@ export function AdvancedFiltersPanel({
                     </div>
 
                     {/* Filters List & Params */}
-                    <div className="flex-1 flex flex-col overflow-y-auto bg-slate-900 p-4 gap-6">
+                    <div className="flex-1 flex flex-col overflow-y-auto bg-tierra-900 p-4 gap-6">
 
                         {/* Horizontal Filter Selector */}
                         <div className="flex gap-2 overflow-x-auto pb-2 snap-x hide-scrollbar">
@@ -113,11 +113,11 @@ export function AdvancedFiltersPanel({
                                     onClick={() => onFilterSelect(filter.id)}
                                     className={`snap-center shrink-0 px-4 py-3 rounded-xl border text-sm font-semibold transition-all flex flex-col gap-1 items-start w-[140px] text-left
                     ${activeFilterId === filter.id
-                                            ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/30'
-                                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500'}`}
+                                            ? 'bg-burdeo-600 border-ocre-400 text-white shadow-lg shadow-tierra-800/30'
+                                            : 'bg-tierra-800 border-tierra-700 text-crema-300 hover:border-tierra-500'}`}
                                 >
                                     <span className="block truncate w-full">{filter.name}</span>
-                                    <span className={`text-[10px] font-normal opacity-80 line-clamp-2 leading-tight ${activeFilterId === filter.id ? 'text-blue-100' : 'text-slate-500'}`}>
+                                    <span className={`text-[10px] font-normal opacity-80 line-clamp-2 leading-tight ${activeFilterId === filter.id ? 'text-crema-100' : 'text-tierra-500'}`}>
                                         {filter.description}
                                     </span>
                                 </button>
@@ -126,13 +126,13 @@ export function AdvancedFiltersPanel({
 
                         {/* Active Filter Parameters */}
                         {activeDef ? (
-                            <div className="space-y-6 bg-slate-800/50 p-5 rounded-2xl border border-slate-700/50">
-                                <div className="flex justify-between items-center border-b border-slate-700 pb-3 mb-4">
+                            <div className="space-y-6 bg-tierra-800/50 p-5 rounded-2xl border border-tierra-700/50">
+                                <div className="flex justify-between items-center border-b border-tierra-700 pb-3 mb-4">
                                     <h3 className="text-white font-bold">{activeDef.name}</h3>
                                     <button
                                         onClick={onApply}
                                         disabled={isProcessing}
-                                        className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg shadow-emerald-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                        className="bg-ocre-600 hover:bg-ocre-500 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg shadow-ocre-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
                                     >
                                         {isProcessing ? (
                                             <>
@@ -148,8 +148,8 @@ export function AdvancedFiltersPanel({
                                 {activeDef.params.map(param => (
                                     <div key={param.id} className="space-y-3">
                                         <div className="flex justify-between items-center">
-                                            <label className="text-sm font-semibold text-slate-300">{param.label}</label>
-                                            <span className="text-xs font-mono bg-slate-950 px-2 py-1 rounded text-blue-400 border border-slate-800">
+                                            <label className="text-sm font-semibold text-crema-300">{param.label}</label>
+                                            <span className="text-xs font-mono bg-tierra-950 px-2 py-1 rounded text-ocre-300 border border-tierra-800">
                                                 {filterParams[activeFilterId as string]?.[param.id] ?? param.default}
                                             </span>
                                         </div>
@@ -160,17 +160,17 @@ export function AdvancedFiltersPanel({
                                             step={param.step}
                                             value={filterParams[activeFilterId as string]?.[param.id] ?? param.default}
                                             onChange={(e) => onParamChange(activeDef.id, param.id, parseFloat(e.target.value))}
-                                            className="w-full accent-blue-500 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                                            className="w-full accent-ocre-400 h-2 bg-tierra-700 rounded-lg appearance-none cursor-pointer"
                                         />
                                     </div>
                                 ))}
 
                                 {activeDef.params.length === 0 && (
-                                    <p className="text-slate-500 text-sm italic text-center py-4">Este filtro no requiere parámetros adicionales y es automático.</p>
+                                    <p className="text-tierra-500 text-sm italic text-center py-4">Este filtro no requiere parámetros adicionales y es automático.</p>
                                 )}
                             </div>
                         ) : (
-                            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 pb-10">
+                            <div className="flex-1 flex flex-col items-center justify-center text-tierra-500 pb-10">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mb-3 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
                                 <p className="text-sm">Selecciona una herramienta para ajustar sus parámetros</p>
                             </div>

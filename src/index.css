@@ -1,7 +1,53 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  /* Burdeo — primary brand */
+  --color-burdeo-50:  #fbf3f4;
+  --color-burdeo-100: #f6e0e4;
+  --color-burdeo-200: #ecbac2;
+  --color-burdeo-300: #dc8c98;
+  --color-burdeo-400: #c85d70;
+  --color-burdeo-500: #ad3f53;
+  --color-burdeo-600: #8e2d40;
+  --color-burdeo-700: #7c2d3a;
+  --color-burdeo-800: #5e1f29;
+  --color-burdeo-900: #3f1219;
+  --color-burdeo-950: #260a10;
+
+  /* Crema — light text & surfaces */
+  --color-crema-50:  #fdfbf6;
+  --color-crema-100: #faf3e0;
+  --color-crema-200: #f5ede4;
+  --color-crema-300: #ebdbc4;
+  --color-crema-400: #d4b797;
+  --color-crema-500: #b18f6a;
+
+  /* Tierra — warm dark earth backgrounds (replaces slate) */
+  --color-tierra-50:  #f8f5f2;
+  --color-tierra-100: #e8dfd5;
+  --color-tierra-200: #c9b69d;
+  --color-tierra-300: #a48b6a;
+  --color-tierra-400: #7a6147;
+  --color-tierra-500: #574533;
+  --color-tierra-600: #3e3024;
+  --color-tierra-700: #2a201a;
+  --color-tierra-800: #1d1612;
+  --color-tierra-900: #14100c;
+  --color-tierra-950: #0a0806;
+
+  /* Ocre — warm gold accent that combines burdeo + crema */
+  --color-ocre-50:  #fbf6e7;
+  --color-ocre-100: #f6eac6;
+  --color-ocre-200: #ecd28b;
+  --color-ocre-300: #ddb654;
+  --color-ocre-400: #c9a861;
+  --color-ocre-500: #b08c3f;
+  --color-ocre-600: #8a6c2d;
+  --color-ocre-700: #5e4a1f;
+  --color-ocre-800: #3a2d13;
+  --color-ocre-900: #20180a;
 }
 
 :root {
@@ -9,8 +55,8 @@
 }
 
 body {
-  background-color: #0f172a;
-  color: #f8fafc;
+  background-color: #14100c; /* tierra-900 */
+  color: #f5ede4; /* crema-200 */
   overflow: hidden;
   height: 100dvh;
   display: flex;

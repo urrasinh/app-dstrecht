@@ -1019,8 +1019,8 @@ export default function App() {
 
   if (authLoading) {
     return (
-      <div className="fixed inset-0 bg-slate-950 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-slate-700 border-t-emerald-500 rounded-full animate-spin"></div>
+      <div className="fixed inset-0 bg-tierra-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-tierra-700 border-t-ocre-500 rounded-full animate-spin"></div>
       </div>
     );
   }
@@ -1041,7 +1041,7 @@ export default function App() {
       />
       <DonateModal isOpen={showDonate} onClose={() => setShowDonate(false)} />
       {/* Toast Notification */}
-      <div id="toast" className={`fixed left-1/2 -translate-x-1/2 bg-emerald-500 text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xl transition-all duration-300 z-[200] flex items-center gap-2 ${toastMsg ? 'top-5' : '-top-24'}`}>
+      <div id="toast" className={`fixed left-1/2 -translate-x-1/2 bg-ocre-500 text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xl transition-all duration-300 z-[200] flex items-center gap-2 ${toastMsg ? 'top-5' : '-top-24'}`}>
         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
         </svg>
@@ -1086,7 +1086,7 @@ export default function App() {
       {isProcessing && <Spinner progress={loadingProgress} message={loadingText} />}
 
       {/* Header */}
-      <header className="h-14 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-4 z-10 shrink-0 shadow-md">
+      <header className="h-14 bg-tierra-900 border-b border-tierra-800 flex items-center justify-between px-4 z-10 shrink-0 shadow-md">
         <div className="flex items-center gap-2.5">
           <div className="flex items-center leading-none">
             <img src="/paqarina-horizontal.png" alt="Paqarina" className="h-8 object-contain" />
@@ -1096,10 +1096,10 @@ export default function App() {
               onClick={() => uploadSync.online && uploadSync.sync()}
               className={`text-[10px] font-bold px-2 py-1 rounded-md border flex items-center gap-1 cursor-pointer ${
                 !uploadSync.online
-                  ? 'text-slate-400 bg-slate-800 border-slate-700'
+                  ? 'text-crema-400 bg-tierra-800 border-tierra-700'
                   : uploadSync.lastError
-                    ? 'text-red-400 bg-red-950/40 border-red-900/50'
-                    : 'text-amber-400 bg-amber-950/40 border-amber-900/50'
+                    ? 'text-burdeo-500 bg-burdeo-950/40 border-burdeo-900/50'
+                    : 'text-ocre-300 bg-ocre-900/40 border-ocre-800/50'
               }`}
               title={
                 !uploadSync.online
@@ -1109,7 +1109,7 @@ export default function App() {
                     : 'Click para sincronizar'
               }
             >
-              {uploadSync.syncing && <span className="w-2 h-2 rounded-full border border-amber-400 border-t-transparent animate-spin"></span>}
+              {uploadSync.syncing && <span className="w-2 h-2 rounded-full border border-ocre-300 border-t-transparent animate-spin"></span>}
               {!uploadSync.online && (
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636L5.636 18.364m12.728 0L5.636 5.636" /></svg>
               )}
@@ -1118,7 +1118,7 @@ export default function App() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <label data-tutorial="cargar" className="bg-red-600 active:bg-red-700 text-white px-3.5 py-1.5 rounded-lg text-sm font-semibold cursor-pointer shadow-lg shadow-red-900/20 transition-colors flex items-center gap-1.5">
+          <label data-tutorial="cargar" className="bg-burdeo-700 active:bg-burdeo-800 text-white px-3.5 py-1.5 rounded-lg text-sm font-semibold cursor-pointer shadow-lg shadow-burdeo-900/20 transition-colors flex items-center gap-1.5">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
             </svg>
@@ -1128,7 +1128,7 @@ export default function App() {
 
           {baseImage && (
             <>
-              <button onClick={downloadImage} className="text-emerald-400 bg-emerald-950/50 px-3 py-1.5 rounded-lg active:bg-emerald-900/80 transition-colors border border-emerald-900/50 flex items-center gap-1.5 text-sm font-semibold">
+              <button onClick={downloadImage} className="text-ocre-400 bg-ocre-900/50 px-3 py-1.5 rounded-lg active:bg-ocre-900/80 transition-colors border border-ocre-900/50 flex items-center gap-1.5 text-sm font-semibold">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v13m0 0l-5-5m5 5l5-5M5 21h14" />
                 </svg>
@@ -1144,7 +1144,7 @@ export default function App() {
 
       {/* Admin tab bar */}
       {isAdmin && (
-        <div className="shrink-0 bg-slate-900 border-b border-slate-800 flex">
+        <div className="shrink-0 bg-tierra-900 border-b border-tierra-800 flex">
           {([
             { id: 'editor', label: 'Editor' },
             { id: 'feed', label: 'Feed' },
@@ -1153,7 +1153,7 @@ export default function App() {
             <button
               key={t.id}
               onClick={() => setActiveTab(t.id)}
-              className={`flex-1 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors ${activeTab === t.id ? 'text-emerald-400 border-b-2 border-emerald-500 bg-slate-950/30' : 'text-slate-500 border-b-2 border-transparent hover:text-slate-300'}`}
+              className={`flex-1 py-2 text-[11px] font-bold uppercase tracking-widest transition-colors ${activeTab === t.id ? 'text-ocre-400 border-b-2 border-ocre-500 bg-tierra-950/30' : 'text-tierra-500 border-b-2 border-transparent hover:text-crema-300'}`}
             >
               {t.label}
             </button>
@@ -1168,13 +1168,13 @@ export default function App() {
       {/* Editor (default for everyone) */}
       <main
         ref={viewportRef}
-        className={`flex-1 min-h-0 w-full relative overflow-hidden bg-slate-950 flex items-center justify-center touch-none ${isAdmin && activeTab !== 'editor' ? 'hidden' : ''}`}
+        className={`flex-1 min-h-0 w-full relative overflow-hidden bg-tierra-950 flex items-center justify-center touch-none ${isAdmin && activeTab !== 'editor' ? 'hidden' : ''}`}
         {...gestureEvents}
       >
         {/* Top left Meta Bar + Donate button (side-by-side) */}
         {baseImage && (
           <div className="absolute top-2.5 left-2.5 z-15 flex flex-col items-start gap-2">
-            <div className="bg-slate-900/75 backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] text-slate-400 flex items-center gap-3 border border-slate-700 shadow-lg pointer-events-none">
+            <div className="bg-tierra-900/75 backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] text-crema-400 flex items-center gap-3 border border-tierra-700 shadow-lg pointer-events-none">
               <span className="font-mono">{baseImage.width}x{baseImage.height}px</span>
             </div>
             {donateBubbleVisible && (
@@ -1183,8 +1183,8 @@ export default function App() {
                 onClick={() => setShowDonate(true)}
                 title="Regálame un café"
                 className={`backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] flex items-center gap-1.5 border shadow-lg uppercase tracking-wider font-semibold animate-in fade-in slide-in-from-top-1 duration-300 ${hasDownloaded
-                  ? 'bg-amber-500/95 hover:bg-amber-500 text-slate-900 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
-                  : 'bg-slate-900/75 hover:bg-slate-800 text-slate-400 border-slate-700'}`}
+                  ? 'bg-ocre-400/95 hover:bg-ocre-400 text-tierra-900 border-ocre-300 shadow-[0_0_12px_rgba(201,168,97,0.5)]'
+                  : 'bg-tierra-900/75 hover:bg-tierra-800 text-crema-400 border-tierra-700'}`}
               >
                 <span className="text-sm leading-none">☕</span>
                 <span>Regálame un café</span>
@@ -1199,38 +1199,38 @@ export default function App() {
             <button
               data-tutorial="menu"
               onClick={(e) => { e.stopPropagation(); setIsMenuOpen(!isMenuOpen) }}
-              className="w-9 h-9 rounded-lg bg-slate-800/90 text-slate-200 flex items-center justify-center border border-slate-600 shadow-lg backdrop-blur-md"
+              className="w-9 h-9 rounded-lg bg-tierra-800/90 text-crema-200 flex items-center justify-center border border-tierra-600 shadow-lg backdrop-blur-md"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
             </button>
 
             {isMenuOpen && (
-              <div className="absolute top-[46px] right-0 bg-slate-900/95 backdrop-blur-xl border border-slate-700 rounded-xl w-[180px] flex flex-col overflow-hidden shadow-[0_10px_25px_rgba(0,0,0,0.8)]">
-                <button onClick={handleRotate} className="px-4 py-3 text-slate-200 text-sm font-semibold flex items-center gap-3 border-b border-slate-800 hover:bg-slate-800 active:bg-blue-600 transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              <div className="absolute top-[46px] right-0 bg-tierra-900/95 backdrop-blur-xl border border-tierra-700 rounded-xl w-[180px] flex flex-col overflow-hidden shadow-[0_10px_25px_rgba(0,0,0,0.8)]">
+                <button onClick={handleRotate} className="px-4 py-3 text-crema-200 text-sm font-semibold flex items-center gap-3 border-b border-tierra-800 hover:bg-tierra-800 active:bg-burdeo-600 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-burdeo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                   Girar 90°
                 </button>
-                <button onClick={handleCrop} className="px-4 py-3 text-slate-200 text-sm font-semibold flex items-center gap-3 border-b border-slate-800 hover:bg-slate-800 active:bg-blue-600 transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" /></svg>
+                <button onClick={handleCrop} className="px-4 py-3 text-crema-200 text-sm font-semibold flex items-center gap-3 border-b border-tierra-800 hover:bg-tierra-800 active:bg-burdeo-600 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-burdeo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" /></svg>
                   Recortar a la Vista
                 </button>
-                <button onClick={() => { setIsMenuOpen(false); setShowInfoModal(true); }} className="px-4 py-3 text-slate-200 text-sm font-semibold flex items-center gap-3 border-b border-slate-800 hover:bg-slate-800 active:bg-blue-600 transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <button onClick={() => { setIsMenuOpen(false); setShowInfoModal(true); }} className="px-4 py-3 text-crema-200 text-sm font-semibold flex items-center gap-3 border-b border-tierra-800 hover:bg-tierra-800 active:bg-burdeo-600 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-burdeo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   Info de Imagen
                 </button>
-                <button onClick={() => { setIsMenuOpen(false); setShowTutorial(true); }} className="px-4 py-3 text-slate-200 text-sm font-semibold flex items-center gap-3 border-b border-slate-800 hover:bg-slate-800 active:bg-emerald-600 transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.5M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.5h.01" /></svg>
+                <button onClick={() => { setIsMenuOpen(false); setShowTutorial(true); }} className="px-4 py-3 text-crema-200 text-sm font-semibold flex items-center gap-3 border-b border-tierra-800 hover:bg-tierra-800 active:bg-ocre-600 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-ocre-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.5M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.5h.01" /></svg>
                   Ver tutorial
                 </button>
-                <button onClick={() => { setIsMenuOpen(false); setShowDonate(true); }} className="px-4 py-3 text-slate-200 text-sm font-semibold flex items-center gap-3 border-b border-slate-800 hover:bg-slate-800 active:bg-amber-600 transition-colors">
+                <button onClick={() => { setIsMenuOpen(false); setShowDonate(true); }} className="px-4 py-3 text-crema-200 text-sm font-semibold flex items-center gap-3 border-b border-tierra-800 hover:bg-tierra-800 active:bg-ocre-500 transition-colors">
                   <span className="text-base leading-none">☕</span>
                   Apoyar el proyecto
                 </button>
-                <div className="px-4 py-2 text-[10px] text-slate-500 border-b border-slate-800 truncate" title={getUserEmail(user)}>
+                <div className="px-4 py-2 text-[10px] text-tierra-500 border-b border-tierra-800 truncate" title={getUserEmail(user)}>
                   {getUserEmail(user)}
-                  {user?.isAnonymous && <span className="ml-1 text-amber-500/80">(invitado)</span>}
+                  {user?.isAnonymous && <span className="ml-1 text-ocre-400/80">(invitado)</span>}
                 </div>
-                <button onClick={async () => { setIsMenuOpen(false); await logout(); }} className="px-4 py-3 text-red-400 text-sm font-semibold flex items-center gap-3 hover:bg-slate-800 active:bg-red-900 transition-colors">
+                <button onClick={async () => { setIsMenuOpen(false); await logout(); }} className="px-4 py-3 text-burdeo-500 text-sm font-semibold flex items-center gap-3 hover:bg-tierra-800 active:bg-burdeo-900 transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                   Cerrar sesión
                 </button>
@@ -1242,10 +1242,10 @@ export default function App() {
         {/* Empty State */}
         {!baseImage && !isProcessing && (
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-0">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-14 w-14 mb-3 opacity-40 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-14 w-14 mb-3 opacity-40 text-tierra-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
             </svg>
-            <p className="text-xs uppercase tracking-widest font-semibold text-slate-500">Carga una foto para iniciar</p>
+            <p className="text-xs uppercase tracking-widest font-semibold text-tierra-500">Carga una foto para iniciar</p>
           </div>
         )}
 
@@ -1255,7 +1255,7 @@ export default function App() {
           <div className="w-full h-[33.33%] border-b border-dashed border-white/40"></div>
           <div className="absolute top-0 bottom-0 left-[33.33%] border-r border-dashed border-white/40"></div>
           <div className="absolute top-0 bottom-0 left-[66.66%] border-r border-dashed border-white/40"></div>
-          <div className="absolute inset-0 border-2 border-blue-500/60 shadow-[inset_0_0_0_2000px_rgba(0,0,0,0.1)]"></div>
+          <div className="absolute inset-0 border-2 border-ocre-400/60 shadow-[inset_0_0_0_2000px_rgba(0,0,0,0.1)]"></div>
         </div>
 
         {/* The Canvas */}

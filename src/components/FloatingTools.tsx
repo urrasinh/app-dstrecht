@@ -29,8 +29,8 @@ export const FloatingTools: React.FC<FloatingToolsProps> = ({
                 onPointerCancel={onShowOriginalEnd}
                 onLostPointerCapture={onShowOriginalEnd}
                 className={`w-11 h-11 rounded-full flex justify-center items-center border shadow-lg backdrop-blur-sm transition-all duration-200 ${isShowingOriginal
-                        ? 'bg-blue-500 border-blue-400 text-white'
-                        : 'bg-slate-800/85 border-slate-600 text-white'
+                        ? 'bg-ocre-400 border-ocre-300 text-white'
+                        : 'bg-tierra-800/85 border-tierra-600 text-white'
                     }`}
                 title="Mantener para ver original"
             >
@@ -43,7 +43,7 @@ export const FloatingTools: React.FC<FloatingToolsProps> = ({
             <button
                 data-tutorial="bake"
                 onClick={onBake}
-                className="w-11 h-11 rounded-full bg-slate-800/85 text-yellow-300 border border-yellow-600 flex justify-center items-center shadow-lg backdrop-blur-sm transition-all duration-200 active:bg-yellow-600 active:text-white"
+                className="w-11 h-11 rounded-full bg-tierra-800/85 text-yellow-300 border border-yellow-600 flex justify-center items-center shadow-lg backdrop-blur-sm transition-all duration-200 active:bg-yellow-600 active:text-white"
                 title="Fijar Base (Acumular Filtros)"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -54,7 +54,7 @@ export const FloatingTools: React.FC<FloatingToolsProps> = ({
             <button
                 data-tutorial="reset"
                 onClick={onReset}
-                className="w-11 h-11 rounded-full bg-red-500 text-white border border-red-400 flex justify-center items-center shadow-lg backdrop-blur-sm transition-all duration-200 active:bg-red-600"
+                className="w-11 h-11 rounded-full bg-burdeo-600 text-white border border-burdeo-500 flex justify-center items-center shadow-lg backdrop-blur-sm transition-all duration-200 active:bg-burdeo-700"
                 title="Limpiar todos los filtros"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

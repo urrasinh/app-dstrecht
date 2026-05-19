@@ -127,7 +127,7 @@ export function FreeCrop({ imageUrl, onApply, onCancel }: FreeCropProps) {
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
                 <div className="text-white font-bold text-sm tracking-widest uppercase">Recorte</div>
-                <button onClick={handleApply} className="text-blue-500 font-bold p-2 uppercase text-sm">Listo</button>
+                <button onClick={handleApply} className="text-ocre-400 font-bold p-2 uppercase text-sm">Listo</button>
             </div>
 
             {/* Container */}
@@ -189,8 +189,8 @@ export function FreeCrop({ imageUrl, onApply, onCancel }: FreeCropProps) {
 
             {/* Bottom Actions */}
             <div className="absolute bottom-0 left-0 right-0 h-24 flex items-center justify-center gap-8 bg-gradient-to-t from-black to-transparent px-6 pb-6 pt-4">
-                <button onClick={onCancel} className="bg-slate-800 text-white px-6 py-3 rounded-2xl flex-1 max-w-[160px] font-bold">Cancelar</button>
-                <button onClick={handleApply} className="bg-blue-600 text-white px-6 py-3 rounded-2xl flex-1 max-w-[160px] font-bold shadow-lg shadow-blue-900/30">Aplicar Recorte</button>
+                <button onClick={onCancel} className="bg-tierra-800 text-white px-6 py-3 rounded-2xl flex-1 max-w-[160px] font-bold">Cancelar</button>
+                <button onClick={handleApply} className="bg-burdeo-600 text-white px-6 py-3 rounded-2xl flex-1 max-w-[160px] font-bold shadow-lg shadow-tierra-800/30">Aplicar Recorte</button>
             </div>
 
         </div>

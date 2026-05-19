@@ -84,12 +84,12 @@ export const AuthGate: React.FC = () => {
     };
 
     return (
-        <div className="fixed inset-0 z-[300] bg-slate-950 flex flex-col items-center justify-center p-6 overflow-y-auto">
+        <div className="fixed inset-0 z-[300] bg-tierra-950 flex flex-col items-center justify-center p-6 overflow-y-auto">
             <div className="w-full max-w-sm flex flex-col gap-6">
                 <div className="text-center">
                     <img src="/paqarina-vertical.png" alt="Paqarina" className="h-24 mx-auto mb-3 object-contain" />
                     <h1 className="text-xl font-bold text-white tracking-tight">DStretch Field Pro</h1>
-                    <p className="text-xs text-slate-400 mt-1">
+                    <p className="text-xs text-crema-400 mt-1">
                         {view === 'sent' ? 'Te enviamos un enlace por correo' :
                          view === 'finishing-link' ? 'Completando inicio de sesión…' :
                          view === 'need-email-confirm' ? 'Confirma tu correo' :
@@ -98,30 +98,30 @@ export const AuthGate: React.FC = () => {
                 </div>
 
                 {view === 'sent' ? (
-                    <div className="bg-emerald-950/40 border border-emerald-900/50 rounded-xl p-4 text-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mx-auto text-emerald-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <div className="bg-ocre-900/40 border border-ocre-900/50 rounded-xl p-4 text-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mx-auto text-ocre-400 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12a4.5 4.5 0 10-9 0m9 0v1.5a3 3 0 11-6 0V12m6 0H7.5m9 0L21 7.5M7.5 12L3 7.5M3 7.5l9 6.75 9-6.75M3 7.5h18v9a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 16.5v-9z" />
                         </svg>
                         <p className="text-sm text-white font-semibold mb-1">Revisa tu bandeja de entrada</p>
-                        <p className="text-xs text-slate-400 leading-relaxed">
-                            Enviamos un enlace a <strong className="text-emerald-400">{email}</strong>.
+                        <p className="text-xs text-crema-400 leading-relaxed">
+                            Enviamos un enlace a <strong className="text-ocre-400">{email}</strong>.
                             Tócalo desde el correo y volverás aquí logueado.
                         </p>
                         <button
                             onClick={() => { setView('idle'); setEmail(''); }}
-                            className="mt-3 text-[11px] text-slate-400 hover:text-emerald-400 underline"
+                            className="mt-3 text-[11px] text-crema-400 hover:text-ocre-400 underline"
                         >
                             Usar otro correo
                         </button>
                     </div>
                 ) : view === 'finishing-link' ? (
                     <div className="flex flex-col items-center gap-3 py-6">
-                        <div className="w-8 h-8 border-2 border-slate-700 border-t-emerald-500 rounded-full animate-spin"></div>
-                        <p className="text-xs text-slate-400">Iniciando sesión…</p>
+                        <div className="w-8 h-8 border-2 border-tierra-700 border-t-ocre-500 rounded-full animate-spin"></div>
+                        <p className="text-xs text-crema-400">Iniciando sesión…</p>
                     </div>
                 ) : view === 'need-email-confirm' ? (
                     <form onSubmit={handleConfirmEmail} className="flex flex-col gap-3">
-                        <p className="text-xs text-slate-400 leading-relaxed bg-slate-900 border border-slate-800 rounded-lg p-3">
+                        <p className="text-xs text-crema-400 leading-relaxed bg-tierra-900 border border-tierra-800 rounded-lg p-3">
                             Por seguridad, escribe el correo al que enviaste el enlace para confirmar tu identidad.
                         </p>
                         <input
@@ -130,15 +130,15 @@ export const AuthGate: React.FC = () => {
                             onChange={e => setEmail(e.target.value)}
                             placeholder="Tu correo"
                             required
-                            className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                            className="bg-tierra-900 border border-tierra-800 rounded-xl px-4 py-3 text-sm text-white placeholder-tierra-500 focus:outline-none focus:border-ocre-500 focus:ring-1 focus:ring-ocre-500"
                         />
                         {error && (
-                            <div className="text-xs text-red-400 bg-red-950/40 border border-red-900/50 rounded-lg px-3 py-2">{error}</div>
+                            <div className="text-xs text-burdeo-500 bg-burdeo-950/40 border border-burdeo-900/50 rounded-lg px-3 py-2">{error}</div>
                         )}
                         <button
                             type="submit"
                             disabled={busy}
-                            className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50"
+                            className="bg-ocre-600 hover:bg-ocre-500 active:bg-ocre-700 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50"
                         >
                             {busy ? '...' : 'Confirmar'}
                         </button>
@@ -148,7 +148,7 @@ export const AuthGate: React.FC = () => {
                         <button
                             onClick={handleGoogle}
                             disabled={busy}
-                            className="w-full bg-white hover:bg-slate-100 text-slate-900 font-semibold py-3 rounded-xl flex items-center justify-center gap-3 transition-colors disabled:opacity-50 shadow-lg"
+                            className="w-full bg-white hover:bg-crema-100 text-tierra-900 font-semibold py-3 rounded-xl flex items-center justify-center gap-3 transition-colors disabled:opacity-50 shadow-lg"
                         >
                             <svg className="h-5 w-5" viewBox="0 0 24 24">
                                 <path fill="#4285f4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -160,9 +160,9 @@ export const AuthGate: React.FC = () => {
                         </button>
 
                         <div className="flex items-center gap-3">
-                            <div className="flex-1 h-px bg-slate-800"></div>
-                            <span className="text-[10px] text-slate-500 uppercase tracking-widest">o</span>
-                            <div className="flex-1 h-px bg-slate-800"></div>
+                            <div className="flex-1 h-px bg-tierra-800"></div>
+                            <span className="text-[10px] text-tierra-500 uppercase tracking-widest">o</span>
+                            <div className="flex-1 h-px bg-tierra-800"></div>
                         </div>
 
                         <form onSubmit={handleQuickEntry} className="flex flex-col gap-3">
@@ -172,17 +172,17 @@ export const AuthGate: React.FC = () => {
                                 onChange={e => setEmail(e.target.value)}
                                 placeholder="Tu correo electrónico"
                                 required
-                                className="bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                                className="bg-tierra-900 border border-tierra-800 rounded-xl px-4 py-3 text-sm text-white placeholder-tierra-500 focus:outline-none focus:border-ocre-500 focus:ring-1 focus:ring-ocre-500"
                             />
 
                             {error && (
-                                <div className="text-xs text-red-400 bg-red-950/40 border border-red-900/50 rounded-lg px-3 py-2">{error}</div>
+                                <div className="text-xs text-burdeo-500 bg-burdeo-950/40 border border-burdeo-900/50 rounded-lg px-3 py-2">{error}</div>
                             )}
 
                             <button
                                 type="submit"
                                 disabled={busy || !email}
-                                className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                                className="bg-ocre-600 hover:bg-ocre-500 active:bg-ocre-700 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                             >
                                 {busy ? '...' : (
                                     <>
@@ -197,11 +197,11 @@ export const AuthGate: React.FC = () => {
                                 type="button"
                                 onClick={(e) => handleSendLink(e as unknown as React.FormEvent)}
                                 disabled={busy || !email}
-                                className="text-[11px] text-slate-400 hover:text-emerald-400 underline underline-offset-2 disabled:opacity-50"
+                                className="text-[11px] text-crema-400 hover:text-ocre-400 underline underline-offset-2 disabled:opacity-50"
                             >
                                 ¿Prefieres verificar tu correo? Recibe un enlace
                             </button>
-                            <p className="text-[10px] text-slate-500 text-center leading-snug">
+                            <p className="text-[10px] text-tierra-500 text-center leading-snug">
                                 Sin contraseñas, sin verificación. Tus subidas quedan etiquetadas con el correo declarado.
                             </p>
                         </form>
@@ -209,12 +209,12 @@ export const AuthGate: React.FC = () => {
                 )}
 
                 {view !== 'finishing-link' && (
-                    <p className="text-[10px] text-slate-500 text-center leading-relaxed pt-2 border-t border-slate-800/60">
+                    <p className="text-[10px] text-tierra-500 text-center leading-relaxed pt-2 border-t border-tierra-800/60">
                         Al continuar aceptas los{' '}
                         <button
                             type="button"
                             onClick={() => setShowTerms(true)}
-                            className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2"
+                            className="text-ocre-400 hover:text-ocre-300 underline underline-offset-2"
                         >
                             términos y condiciones
                         </button>
