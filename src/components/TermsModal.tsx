@@ -19,7 +19,7 @@ export const TermsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
 
                 <div className="overflow-y-auto px-5 py-4 text-sm text-crema-300 leading-relaxed space-y-4">
                     <p>
-                        Al iniciar sesión y utilizar <strong className="text-white">Filtro Pictografías</strong> aceptas
+                        Al iniciar sesión y utilizar <strong className="text-white">Filtros Pictografías</strong> aceptas
                         los términos de uso de la plataforma y el tratamiento de datos descritos a continuación.
                     </p>
 

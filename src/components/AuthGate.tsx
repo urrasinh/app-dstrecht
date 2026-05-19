@@ -88,7 +88,7 @@ export const AuthGate: React.FC = () => {
             <div className="w-full max-w-sm flex flex-col gap-6">
                 <div className="text-center">
                     <img src="/paqarina-vertical.png" alt="Paqarina" className="h-24 mx-auto mb-3 object-contain" />
-                    <h1 className="text-xl font-bold text-white tracking-tight">DStretch Field Pro</h1>
+                    <h1 className="text-xl font-bold text-white tracking-tight">Filtros Pictografías</h1>
                     <p className="text-xs text-crema-400 mt-1">
                         {view === 'sent' ? 'Te enviamos un enlace por correo' :
                          view === 'finishing-link' ? 'Completando inicio de sesión…' :

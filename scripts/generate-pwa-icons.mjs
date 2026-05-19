@@ -12,7 +12,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const SRC = path.join(ROOT, 'public', 'paqarina-vertical.png');
 
-const BG = { r: 0x14, g: 0x10, b: 0x0c, alpha: 1 }; // tierra-900
+const BG = { r: 0x69, g: 0x11, b: 0x0b, alpha: 1 }; // #69110b (burdeo oscuro de marca)
 
 const targets = [
     { name: 'pwa-192x192.png', size: 192 },
