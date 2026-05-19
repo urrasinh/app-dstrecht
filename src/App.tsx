@@ -22,6 +22,7 @@ import { Tutorial, type TutorialStep } from './components/Tutorial';
 import { loadDemoImage } from './utils/demoImage';
 import { DonateModal } from './components/DonateModal';
 import { FirstTimeWelcome } from './components/FirstTimeWelcome';
+import { useInstallPrompt } from './hooks/useInstallPrompt';
 
 import './index.css';
 
@@ -32,6 +33,8 @@ const SHOW_DONATE = false;
 export default function App() {
   const { user, loading: authLoading } = useAuth();
   const uploadSync = useUploadSync();
+  const install = useInstallPrompt();
+  const [showIOSInstall, setShowIOSInstall] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState<'editor' | 'feed' | 'users'>('editor');
   const [showWelcome, setShowWelcome] = useState(false);
@@ -1044,6 +1047,47 @@ export default function App() {
         onSkip={handleTutorialDone}
       />
       <DonateModal isOpen={showDonate} onClose={() => setShowDonate(false)} />
+
+      {/* iOS install instructions modal — shown when user picks "Instalar la app" on Safari */}
+      {showIOSInstall && (
+        <div className="fixed inset-0 z-[400] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowIOSInstall(false)}>
+          <div className="bg-tierra-900 border border-tierra-700 rounded-2xl max-w-sm w-full shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-tierra-800">
+              <h2 className="text-base font-bold text-white">Instalar en iOS</h2>
+              <button onClick={() => setShowIOSInstall(false)} className="text-crema-400 hover:text-white p-1">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="px-5 py-4 text-sm text-crema-300 leading-relaxed space-y-3">
+              <p>Safari no permite instalar automáticamente, pero podés hacerlo en dos pasos:</p>
+              <ol className="space-y-2 text-crema-200">
+                <li className="flex gap-2">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-ocre-500/20 text-ocre-300 text-xs font-bold shrink-0">1</span>
+                  <span>Toca el botón <strong className="text-white">⬆️ Compartir</strong> en la barra inferior de Safari.</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-ocre-500/20 text-ocre-300 text-xs font-bold shrink-0">2</span>
+                  <span>Elige <strong className="text-white">"Añadir a pantalla de inicio"</strong>.</span>
+                </li>
+              </ol>
+              <p className="text-xs text-crema-400 pt-2 border-t border-tierra-800">
+                Una vez instalada, la app va a abrirse a pantalla completa y va a funcionar sin internet.
+              </p>
+            </div>
+            <div className="px-5 py-3 border-t border-tierra-800">
+              <button
+                onClick={() => setShowIOSInstall(false)}
+                className="w-full bg-burdeo-700 hover:bg-burdeo-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification */}
       <div id="toast" className={`fixed left-1/2 -translate-x-1/2 bg-ocre-500 text-white px-5 py-2.5 rounded-full text-xs font-bold shadow-xl transition-all duration-300 z-[200] flex items-center gap-2 ${toastMsg ? 'top-5' : '-top-24'}`}>
         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1226,6 +1270,19 @@ export default function App() {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-ocre-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.5M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.5h.01" /></svg>
                   Ver tutorial
                 </button>
+                {(install.canInstallNative || install.isIOS) && (
+                  <button
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      if (install.isIOS) setShowIOSInstall(true);
+                      else install.promptInstall();
+                    }}
+                    className="px-4 py-3 text-crema-200 text-sm font-semibold flex items-center gap-3 border-b border-tierra-800 hover:bg-tierra-800 active:bg-ocre-600 transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-ocre-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    Instalar la app
+                  </button>
+                )}
                 {SHOW_DONATE && (
                   <button onClick={() => { setIsMenuOpen(false); setShowDonate(true); }} className="px-4 py-3 text-crema-200 text-sm font-semibold flex items-center gap-3 border-b border-tierra-800 hover:bg-tierra-800 active:bg-ocre-500 transition-colors">
                     <span className="text-base leading-none">☕</span>

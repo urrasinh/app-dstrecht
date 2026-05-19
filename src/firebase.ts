@@ -10,6 +10,8 @@ import {
     updateProfile,
     signOut,
     onAuthStateChanged,
+    setPersistence,
+    browserLocalPersistence,
     type User,
 } from 'firebase/auth';
 import { getMessaging, getToken, onMessage, isSupported } from 'firebase/messaging';
@@ -25,6 +27,13 @@ const firebaseConfig = {
 
 export const firebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
+
+// Explicit local persistence so the auth state survives a full PWA restart
+// and works offline. Default is already local in browsers, but pinning it
+// here protects against future Firebase changes and silent fallbacks.
+setPersistence(auth, browserLocalPersistence).catch(err =>
+    console.warn('Firebase auth persistence setup failed', err)
+);
 
 const googleProvider = new GoogleAuthProvider();
 

@@ -1,9 +1,5 @@
-import React, { useEffect, useState } from 'react';
-
-interface BIPEvent extends Event {
-    prompt: () => Promise<void>;
-    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
+import React, { useState } from 'react';
+import { useInstallPrompt } from '../hooks/useInstallPrompt';
 
 interface FirstTimeWelcomeProps {
     isOpen: boolean;
@@ -11,56 +7,15 @@ interface FirstTimeWelcomeProps {
     onSkipTutorial: () => void;
 }
 
-function isIOSSafari(): boolean {
-    if (typeof navigator === 'undefined') return false;
-    const ua = navigator.userAgent;
-    const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.maxTouchPoints > 1 && /Mac/.test(ua));
-    const isStandalone = (window.matchMedia?.('(display-mode: standalone)').matches) ||
-        (navigator as { standalone?: boolean }).standalone === true;
-    return isIOS && !isStandalone;
-}
-
-function isInstalled(): boolean {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia?.('(display-mode: standalone)').matches ||
-        (navigator as { standalone?: boolean }).standalone === true;
-}
-
 export const FirstTimeWelcome: React.FC<FirstTimeWelcomeProps> = ({ isOpen, onStartTutorial, onSkipTutorial }) => {
-    const [bipEvent, setBipEvent] = useState<BIPEvent | null>(null);
-    const [installed, setInstalled] = useState(false);
+    const install = useInstallPrompt();
     const [installing, setInstalling] = useState(false);
-
-    useEffect(() => {
-        if (!isOpen) return;
-        setInstalled(isInstalled());
-        const handler = (e: Event) => {
-            e.preventDefault();
-            setBipEvent(e as BIPEvent);
-        };
-        window.addEventListener('beforeinstallprompt', handler);
-        const onInstalled = () => setInstalled(true);
-        window.addEventListener('appinstalled', onInstalled);
-        return () => {
-            window.removeEventListener('beforeinstallprompt', handler);
-            window.removeEventListener('appinstalled', onInstalled);
-        };
-    }, [isOpen]);
 
     if (!isOpen) return null;
 
-    const ios = isIOSSafari();
-
     const handleInstall = async () => {
-        if (!bipEvent) return;
         setInstalling(true);
-        try {
-            await bipEvent.prompt();
-            await bipEvent.userChoice;
-            setBipEvent(null);
-        } finally {
-            setInstalling(false);
-        }
+        try { await install.promptInstall(); } finally { setInstalling(false); }
     };
 
     return (
@@ -76,27 +31,25 @@ export const FirstTimeWelcome: React.FC<FirstTimeWelcomeProps> = ({ isOpen, onSt
                     </p>
                 </div>
 
-                {/* Offline feature */}
-                <div className="bg-ocre-900/30 border border-ocre-900/50 rounded-2xl p-4 flex gap-3 items-start">
-                    <div className="bg-ocre-500/20 text-ocre-400 p-2 rounded-xl shrink-0">
+                {/* Offline note */}
+                <div className="bg-tierra-900/60 border border-tierra-700 rounded-2xl p-4 flex gap-3 items-start">
+                    <div className="bg-ocre-500/15 text-ocre-400 p-2 rounded-xl shrink-0">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9.348 14.652a3.75 3.75 0 010-5.304m5.304 0a3.75 3.75 0 010 5.304m-7.425 2.121a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M5.106 18.894c-3.808-3.808-3.808-9.98 0-13.788m13.788 0c3.808 3.808 3.808 9.98 0 13.788M12 12h.008v.008H12V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 12.55a11 11 0 0114 0M1.42 9a16 16 0 0121.16 0M8.53 16.11a6 6 0 016.95 0M12 20h.01" />
                         </svg>
                     </div>
                     <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-bold text-white">Funciona sin internet</h3>
-                        <p className="text-xs text-crema-300 leading-relaxed mt-0.5">
-                            El procesamiento DStretch corre <strong>en tu dispositivo</strong>. Una vez instalada,
-                            puedes usar la app en campo, sin conexión. Las subidas a Drive se sincronizan
-                            cuando vuelvas a tener señal.
+                        <p className="text-xs text-crema-400 leading-relaxed mt-0.5">
+                            Una vez instalada, podés procesar y previsualizar imágenes sin conexión. Las subidas se guardan y se envían cuando vuelva la red.
                         </p>
                     </div>
                 </div>
 
-                {/* Install */}
-                <div className="bg-tierra-900 border border-tierra-800 rounded-2xl p-4 flex flex-col gap-3">
+                {/* Install card */}
+                <div className="bg-tierra-900/60 border border-tierra-700 rounded-2xl p-4 flex flex-col gap-3">
                     <div className="flex gap-3 items-start">
-                        <div className="bg-ocre-400/20 text-ocre-300 p-2 rounded-xl shrink-0">
+                        <div className="bg-ocre-500/15 text-ocre-400 p-2 rounded-xl shrink-0">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
@@ -104,21 +57,21 @@ export const FirstTimeWelcome: React.FC<FirstTimeWelcomeProps> = ({ isOpen, onSt
                         <div className="flex-1 min-w-0">
                             <h3 className="text-sm font-bold text-white">Instala la app</h3>
                             <p className="text-xs text-crema-400 leading-relaxed mt-0.5">
-                                {installed
+                                {install.installed
                                     ? 'Ya está instalada en tu dispositivo. ✓'
-                                    : ios
+                                    : install.isIOS
                                         ? 'En Safari, toca Compartir ⬆️ y luego "Añadir a pantalla de inicio".'
                                         : 'Acceso rápido desde el inicio, sin barra del navegador, modo pantalla completa.'}
                             </p>
                         </div>
                     </div>
-                    {!installed && !ios && (
+                    {!install.installed && !install.isIOS && (
                         <button
                             onClick={handleInstall}
-                            disabled={!bipEvent || installing}
+                            disabled={!install.canInstallNative || installing}
                             className="w-full bg-burdeo-600 hover:bg-ocre-400 active:bg-burdeo-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                            {installing ? 'Instalando…' : bipEvent ? 'Instalar ahora' : 'No disponible en este navegador'}
+                            {installing ? 'Instalando…' : install.canInstallNative ? 'Instalar ahora' : 'No disponible en este navegador'}
                         </button>
                     )}
                 </div>
