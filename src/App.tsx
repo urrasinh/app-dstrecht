@@ -25,6 +25,10 @@ import { FirstTimeWelcome } from './components/FirstTimeWelcome';
 
 import './index.css';
 
+// Feature flag — "Regálame un café" temporalmente oculto (hasta nuevo aviso).
+// Para reactivar: cambiar a true.
+const SHOW_DONATE = false;
+
 export default function App() {
   const { user, loading: authLoading } = useAuth();
   const uploadSync = useUploadSync();
@@ -962,7 +966,8 @@ export default function App() {
       target: '[data-tutorial="menu"]',
       placement: 'bottom',
     },
-    {
+    // Donate step temporalmente desactivado (ver SHOW_DONATE)
+    ...(SHOW_DONATE ? [{
       id: 'donate',
       title: '☕ Apoya el proyecto',
       body: (
@@ -973,9 +978,8 @@ export default function App() {
         </>
       ),
       target: '[data-tutorial="donate"]',
-      placement: 'bottom',
-      // No onEnter — the outer effect keeps the bubble visible during the whole tutorial.
-    },
+      placement: 'bottom' as const,
+    }] : []),
     {
       id: 'done',
       title: '¡Listo!',
@@ -1177,7 +1181,7 @@ export default function App() {
             <div className="bg-tierra-900/75 backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] text-crema-400 flex items-center gap-3 border border-tierra-700 shadow-lg pointer-events-none">
               <span className="font-mono">{baseImage.width}x{baseImage.height}px</span>
             </div>
-            {donateBubbleVisible && (
+            {SHOW_DONATE && donateBubbleVisible && (
               <button
                 data-tutorial="donate"
                 onClick={() => setShowDonate(true)}
@@ -1222,10 +1226,12 @@ export default function App() {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-ocre-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.5M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.5h.01" /></svg>
                   Ver tutorial
                 </button>
-                <button onClick={() => { setIsMenuOpen(false); setShowDonate(true); }} className="px-4 py-3 text-crema-200 text-sm font-semibold flex items-center gap-3 border-b border-tierra-800 hover:bg-tierra-800 active:bg-ocre-500 transition-colors">
-                  <span className="text-base leading-none">☕</span>
-                  Apoyar el proyecto
-                </button>
+                {SHOW_DONATE && (
+                  <button onClick={() => { setIsMenuOpen(false); setShowDonate(true); }} className="px-4 py-3 text-crema-200 text-sm font-semibold flex items-center gap-3 border-b border-tierra-800 hover:bg-tierra-800 active:bg-ocre-500 transition-colors">
+                    <span className="text-base leading-none">☕</span>
+                    Apoyar el proyecto
+                  </button>
+                )}
                 <div className="px-4 py-2 text-[10px] text-tierra-500 border-b border-tierra-800 truncate" title={getUserEmail(user)}>
                   {getUserEmail(user)}
                   {user?.isAnonymous && <span className="ml-1 text-ocre-400/80">(invitado)</span>}
