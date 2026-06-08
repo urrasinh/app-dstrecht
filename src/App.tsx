@@ -950,7 +950,7 @@ export default function App() {
       dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.95);
     }
 
-    const fileName = `DStretch_${currentMode}_${Date.now()}.jpg`;
+    const fileName = `Decorrelacion_${currentMode}_${Date.now()}.jpg`;
     const blob = dataURLToBlob(dataUrl);
 
     const markDownloaded = () => {
@@ -1015,7 +1015,7 @@ export default function App() {
       body: (
         <>
           Te voy a mostrar cómo usar la app en menos de un minuto. Vamos a procesar una imagen
-          de demostración para que veas cómo funcionan los filtros DStretch.
+          de demostración para que veas cómo funciona el realce de contraste por decorrelación.
         </>
       ),
       target: null,
@@ -1040,7 +1040,7 @@ export default function App() {
     },
     {
       id: 'dstretch',
-      title: 'Algoritmos DStretch',
+      title: 'Filtro de decorrelación',
       body: (
         <>
           Estos botones aplican distintos algoritmos de decorrelación. <b>YDS</b> realza amarillos,
@@ -1060,7 +1060,7 @@ export default function App() {
       title: 'Filtros visuales',
       body: (
         <>
-          Aplica realce adicional encima del DStretch. Cada filtro tiene <b>parámetros ajustables
+          Aplica realce adicional encima de la decorrelación. Cada filtro tiene <b>parámetros ajustables
           </b> que aparecen al seleccionarlo: contraste, saturación, brillo, etc.
         </>
       ),
@@ -1136,7 +1136,7 @@ export default function App() {
       body: (
         <>
           Ya conoces lo básico. Sube tus propias fotos de pictografías y experimenta con los modos
-          DStretch para ver cuál realza mejor tus pigmentos. Puedes volver a ver este tutorial
+          de decorrelación para ver cuál realza mejor tus pigmentos. Puedes volver a ver este tutorial
           desde el menú lateral.
         </>
       ),
@@ -1460,7 +1460,7 @@ export default function App() {
                   onClick={() => { setIsMenuOpen(false); setShowAbout(true); }}
                   className="px-4 py-2.5 text-[10px] text-tierra-400 hover:text-crema-300 hover:bg-tierra-800 transition-colors text-left"
                 >
-                  Acerca de · WebApp DStretch
+                  Acerca de · Filtros Pictografías
                 </button>
               </div>
             )}

@@ -25,7 +25,7 @@ export const AboutModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
 
                     <div className="space-y-0.5">
                         <h3 className="text-white font-bold text-lg leading-tight">Filtros Avanzados para Pictografías</h3>
-                        <p className="text-ocre-400 text-xs font-semibold uppercase tracking-widest">WebApp DStretch · Versión 2.1</p>
+                        <p className="text-ocre-400 text-xs font-semibold uppercase tracking-widest">Realce de contraste por decorrelación · Versión 2.1</p>
                     </div>
 
                     <div className="w-12 h-px bg-tierra-700"></div>

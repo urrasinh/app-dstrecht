@@ -26,8 +26,8 @@ export const FirstTimeWelcome: React.FC<FirstTimeWelcomeProps> = ({ isOpen, onSt
                     <img src="/paqarina-horizontal.png" alt="Paqarina" className="h-12 mx-auto mb-4 object-contain" />
                     <h1 className="text-2xl font-bold text-white tracking-tight">¡Bienvenido!</h1>
                     <p className="text-sm text-crema-400 mt-2 leading-relaxed">
-                        Filtro DStretch es una herramienta para realzar pictografías y arte rupestre
-                        usando decorrelación de colores.
+                        Filtros Pictografías es una herramienta para realzar pictografías y arte
+                        rupestre mediante realce de contraste por decorrelación de colores.
                     </p>
                 </div>
 

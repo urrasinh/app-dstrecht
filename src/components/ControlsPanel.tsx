@@ -95,7 +95,7 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
             <div data-tutorial="dstretch" className={`shrink-0 transition-all duration-300 ${isFull ? 'pt-1 pb-1.5' : 'pt-1 pb-2'}`}>
                 <div className="text-[9px] font-bold text-tierra-500 uppercase tracking-widest pl-4 mb-1 flex items-center gap-2">
                     <span className="w-1 h-1 bg-ocre-400 rounded-full"></span>
-                    Base DStretch
+                    Filtro de decorrelación
                 </div>
                 <div className="flex overflow-x-auto scroll-smooth px-4 gap-2 no-scrollbar pb-1">
                     {previews.map((preview) => {
@@ -160,7 +160,7 @@ export const ControlsPanel: React.FC<ControlsPanelProps> = ({
                             <div className="flex justify-between items-center">
                                 <div className="text-[10px] font-bold text-ocre-300 uppercase tracking-widest flex items-center gap-2">
                                     <span className={`w-1.5 h-1.5 bg-ocre-400 rounded-full ${isReprocessing ? 'animate-pulse' : ''}`}></span>
-                                    Ajustes DStretch — {currentMode}
+                                    Ajustes de decorrelación — {currentMode}
                                     {isReprocessing && <span className="w-2.5 h-2.5 rounded-full border border-ocre-300 border-t-transparent animate-spin"></span>}
                                 </div>
                                 <button

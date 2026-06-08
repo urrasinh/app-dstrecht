@@ -14,7 +14,7 @@ export const ADVANCED_FILTERS: AdvancedFilterDef[] = [
     {
         id: 'BRIGHTNESS_CONTRAST',
         name: 'Brillo y Contraste Fuerte',
-        description: 'Ajuste directo de luminancia. Útil en combinación con otros filtros DStretch.',
+        description: 'Ajuste directo de luminancia. Útil en combinación con otros filtros de decorrelación.',
         category: 'GLOBAL',
         params: [
             { id: 'brightness', label: 'Brillo', type: 'slider', min: -100, max: 100, step: 1, default: 0 },

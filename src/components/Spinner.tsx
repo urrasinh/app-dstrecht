@@ -19,7 +19,7 @@ interface SpinnerProps {
 // Field-photography tips rotated during processing. The RAW/TIFF one comes
 // first because it has the biggest impact on DStretch quality.
 const TIPS: { title: string; text: string }[] = [
-    { title: 'Usa RAW o TIFF', text: 'Evita el JPG cuando puedas: su compresión crea artefactos que DStretch amplifica como “ruido” falso, fácil de confundir con pigmento.' },
+    { title: 'Usa RAW o TIFF', text: 'Evita el JPG cuando puedas: su compresión crea artefactos que la decorrelación amplifica como “ruido” falso, fácil de confundir con pigmento.' },
     { title: 'Luz pareja', text: 'Fotografía con luz difusa: sin sol directo ni sombras duras sobre el panel.' },
     { title: 'Cámara paralela', text: 'Ubica el lente paralelo a la superficie para reducir la distorsión de perspectiva.' },
     { title: 'Activa el GPS', text: 'Si tu cámara guarda la ubicación, la coordenada queda registrada junto a la imagen.' },

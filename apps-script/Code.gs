@@ -151,7 +151,7 @@ function emailImageToUser(body, email, props) {
     var html =
       '<div style="font-family:Arial,sans-serif;color:#1d1612">' +
       '<h2 style="color:#7c2d3a;margin:0 0 8px">Tu imagen procesada</h2>' +
-      '<p style="margin:0 0 14px">Tu imagen realzada con DStretch está lista. Usa el enlace para descargarla:</p>' +
+      '<p style="margin:0 0 14px">Tu imagen realzada por decorrelación está lista. Usa el enlace para descargarla:</p>' +
       '<p style="margin:0 0 10px">' +
       '<a href="' + downloadLink + '" style="background:#7c2d3a;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:bold;display:inline-block">⬇ Descargar imagen</a>' +
       '</p>' +
