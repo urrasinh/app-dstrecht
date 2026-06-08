@@ -31,6 +31,47 @@ import './index.css';
 // Para reactivar: cambiar a true.
 const SHOW_DONATE = false;
 
+// ── Download helpers ────────────────────────────────────────────────────────
+// iOS Safari ignores the <a download> attribute, so the classic anchor trick
+// silently does nothing on iPhone/iPad. There we use the Web Share API, which
+// opens the native sheet with "Guardar imagen" → saves to Photos.
+
+function isIOSDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  const iOS = /iP(hone|ad|od)/.test(ua);
+  // iPadOS 13+ masquerades as macOS Safari but has a touch screen.
+  const iPadOS = navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1;
+  return iOS || iPadOS;
+}
+
+function dataURLToBlob(dataUrl: string): Blob | null {
+  try {
+    const comma = dataUrl.indexOf(',');
+    if (comma < 0) return null;
+    const header = dataUrl.slice(0, comma);
+    const body = dataUrl.slice(comma + 1);
+    const mime = (header.match(/data:([^;]+)/)?.[1]) || 'image/jpeg';
+    const binary = header.includes('base64') ? atob(body) : decodeURIComponent(body);
+    const arr = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  } catch {
+    return null;
+  }
+}
+
+/** Last-resort fallback: open the image in a new tab so the user can long-press → save. */
+function openImageForSave(blob: Blob | null, dataUrl: string): void {
+  try {
+    const url = blob ? URL.createObjectURL(blob) : dataUrl;
+    window.open(url, '_blank');
+    if (blob) setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch {
+    /* noop */
+  }
+}
+
 export default function App() {
   const { user, loading: authLoading } = useAuth();
   const uploadSync = useUploadSync();
@@ -837,16 +878,59 @@ export default function App() {
       dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.95);
     }
 
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = `DStretch_${currentMode}_${Date.now()}.jpg`;
-    a.click();
-    showToast("Imagen descargada");
-    if (!hasDownloaded) {
-      localStorage.setItem('has-downloaded', '1');
-      setHasDownloaded(true);
+    const fileName = `DStretch_${currentMode}_${Date.now()}.jpg`;
+    const blob = dataURLToBlob(dataUrl);
+
+    const markDownloaded = () => {
+      if (!hasDownloaded) {
+        localStorage.setItem('has-downloaded', '1');
+        setHasDownloaded(true);
+      }
+      flashDonateBubble();
+    };
+
+    const file = blob ? new File([blob], fileName, { type: 'image/jpeg' }) : null;
+    const canShareFile = !!file && typeof navigator !== 'undefined'
+      && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] });
+
+    // iOS: <a download> is ignored. Prefer the native share sheet ("Guardar
+    // imagen" → Photos); on iOS < 15 (no file share) open the image so the
+    // user can long-press → "Guardar en Fotos".
+    if (isIOSDevice()) {
+      if (canShareFile && typeof navigator.share === 'function') {
+        showToast("Abriendo… elige 'Guardar imagen'");
+        navigator.share({ files: [file!], title: fileName })
+          .then(() => markDownloaded())
+          .catch((err: { name?: string }) => {
+            if (err && err.name === 'AbortError') return; // user cancelled
+            openImageForSave(blob, dataUrl);
+            markDownloaded();
+          });
+        return;
+      }
+      openImageForSave(blob, dataUrl);
+      showToast("Mantén presionada la imagen para guardarla en Fotos");
+      markDownloaded();
+      return;
     }
-    flashDonateBubble();
+
+    // Desktop / Android: standard anchor download (object URL avoids huge href).
+    try {
+      const url = blob ? URL.createObjectURL(blob) : dataUrl;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      if (blob) setTimeout(() => URL.revokeObjectURL(url), 10000);
+      showToast("Imagen descargada");
+    } catch {
+      openImageForSave(blob, dataUrl);
+      showToast("Abrí la imagen: mantén presionado para guardarla");
+    }
+    markDownloaded();
   }
 
 
