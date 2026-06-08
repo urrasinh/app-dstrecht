@@ -51,6 +51,10 @@ function doPost(e) {
       if (body.action === 'whoami') {
         return jsonOut({ ok: true, email: email, isAdmin: admin });
       }
+      if (body.action === 'emailImage') {
+        // Any authenticated user can email a copy to themselves.
+        return emailImageToUser(body, email);
+      }
       if (body.action === 'registerPushToken') {
         if (!admin) return jsonOut({ ok: false, error: 'No autorizado' });
         return registerPushToken(props, email, body.token);
@@ -112,6 +116,37 @@ function handleUpload(body, email, props) {
   notifyAdmins(props, email, body, driveLink, mapsLink, fileId);
 
   return jsonOut({ ok: true, driveLink: driveLink, mapsLink: mapsLink, fileId: fileId });
+}
+
+// ── Email a processed image copy to the user ────────────────────────────────
+
+function emailImageToUser(body, email) {
+  var to = String(body.toEmail || email || '').trim();
+  if (!to) return jsonOut({ ok: false, error: 'Sin correo destino' });
+  if (!body.fileBase64) return jsonOut({ ok: false, error: 'Sin imagen' });
+  try {
+    var blob = Utilities.newBlob(
+      Utilities.base64Decode(body.fileBase64),
+      body.mimeType || 'image/jpeg',
+      body.fileName || 'pictografia.jpg'
+    );
+    var html =
+      '<div style="font-family:Arial,sans-serif;color:#1d1612">' +
+      '<h2 style="color:#7c2d3a;margin:0 0 8px">Tu imagen procesada</h2>' +
+      '<p style="margin:0 0 12px">Adjuntamos la imagen realzada con DStretch desde <b>Filtros Pictografías</b>.</p>' +
+      '<p style="color:#888;font-size:12px;margin-top:16px">Fundación Paqarina · fundacionpaqarina.com</p>' +
+      '</div>';
+    MailApp.sendEmail({
+      to: to,
+      subject: 'Tu imagen procesada — Filtros Pictografías',
+      htmlBody: html,
+      attachments: [blob],
+      name: 'Filtros Pictografías'
+    });
+    return jsonOut({ ok: true, to: to });
+  } catch (err) {
+    return jsonOut({ ok: false, error: String(err && err.message || err) });
+  }
 }
 
 function ensureRegistrosSheet(ss, name) {

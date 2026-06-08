@@ -11,6 +11,8 @@ import type { WorkerRequest, WorkerResponse } from './types';
 
 import { InfoModal } from './components/InfoModal';
 import { AboutModal } from './components/AboutModal';
+import { EmailCopyModal } from './components/EmailCopyModal';
+import { sendImageEmail, readEmailPref, saveEmailPref } from './utils/emailApi';
 import { ControlsPanel } from './components/ControlsPanel';
 import { FloatingTools } from './components/FloatingTools';
 import { FreeCrop } from './components/FreeCrop';
@@ -117,6 +119,9 @@ export default function App() {
   // State: Modals
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const pendingEmailDataRef = useRef<{ base64: string; fileName: string } | null>(null);
   // State: Filters
   const [currentMode, setCurrentMode] = useState('YDS');
   const [currentFilter, setCurrentFilter] = useState('Normal');
@@ -851,6 +856,39 @@ export default function App() {
     img.src = offCanvas.toDataURL();
   };
 
+  // After a download: auto-send a copy if the user opted in, otherwise offer it.
+  const offerEmailCopy = (dataUrl: string, fileName: string) => {
+    const base64 = dataUrl.split(',')[1] || '';
+    if (!base64) return;
+    const pref = readEmailPref();
+    if (pref?.enabled && pref.email) {
+      showToast(`Enviando copia a ${pref.email}…`);
+      sendImageEmail({ fileBase64: base64, fileName, mimeType: 'image/jpeg', toEmail: pref.email })
+        .then(() => showToast(`Copia enviada a ${pref.email} ✓`))
+        .catch((e: any) => showToast(`No se pudo enviar el correo: ${e?.message || e}`));
+    } else {
+      pendingEmailDataRef.current = { base64, fileName };
+      setShowEmailModal(true);
+    }
+  };
+
+  const handleSendEmailCopy = async (toEmail: string, remember: boolean) => {
+    const data = pendingEmailDataRef.current;
+    if (!data) { setShowEmailModal(false); return; }
+    setEmailBusy(true);
+    try {
+      await sendImageEmail({ fileBase64: data.base64, fileName: data.fileName, mimeType: 'image/jpeg', toEmail });
+      if (remember) saveEmailPref({ enabled: true, email: toEmail });
+      showToast(`Copia enviada a ${toEmail} ✓`);
+      setShowEmailModal(false);
+      pendingEmailDataRef.current = null;
+    } catch (e: any) {
+      showToast(`No se pudo enviar: ${e?.message || e}`);
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
   const downloadImage = () => {
     if (!canvasRef.current || !baseImage) return;
 
@@ -887,6 +925,7 @@ export default function App() {
         setHasDownloaded(true);
       }
       flashDonateBubble();
+      offerEmailCopy(dataUrl, fileName);
     };
 
     const file = blob ? new File([blob], fileName, { type: 'image/jpeg' }) : null;
@@ -1180,6 +1219,14 @@ export default function App() {
       />
 
       <AboutModal isOpen={showAbout} onClose={() => setShowAbout(false)} />
+
+      <EmailCopyModal
+        isOpen={showEmailModal}
+        defaultEmail={getUserEmail(user)}
+        busy={emailBusy}
+        onSend={handleSendEmailCopy}
+        onClose={() => { if (!emailBusy) { setShowEmailModal(false); pendingEmailDataRef.current = null; } }}
+      />
 
       {isCropping && canvasRef.current && (
         <FreeCrop
