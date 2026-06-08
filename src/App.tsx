@@ -33,6 +33,10 @@ import './index.css';
 // Para reactivar: cambiar a true.
 const SHOW_DONATE = false;
 
+// Feature flag — envío de copia por correo desactivado por ahora.
+// Para reactivar: cambiar a true (y redesplegar el Apps Script con emailImage).
+const SHOW_EMAIL_COPY = false;
+
 // ── Download helpers ────────────────────────────────────────────────────────
 // iOS Safari ignores the <a download> attribute, so the classic anchor trick
 // silently does nothing on iPhone/iPad. There we use the Web Share API, which
@@ -863,6 +867,7 @@ export default function App() {
   // After a download: auto-send a copy to the session email if the user opted
   // in, otherwise offer it. Always sends to the current session address.
   const offerEmailCopy = (dataUrl: string, fileName: string) => {
+    if (!SHOW_EMAIL_COPY) return; // feature disabled for now
     const base64 = dataUrl.split(',')[1] || '';
     if (!base64) return;
     const to = getUserEmail(user);
@@ -1249,13 +1254,15 @@ export default function App() {
 
       <AboutModal isOpen={showAbout} onClose={() => setShowAbout(false)} />
 
-      <EmailCopyModal
-        isOpen={showEmailModal}
-        email={getUserEmail(user)}
-        busy={emailBusy}
-        onSend={handleSendEmailCopy}
-        onClose={() => { if (!emailBusy) { setShowEmailModal(false); pendingEmailDataRef.current = null; } }}
-      />
+      {SHOW_EMAIL_COPY && (
+        <EmailCopyModal
+          isOpen={showEmailModal}
+          email={getUserEmail(user)}
+          busy={emailBusy}
+          onSend={handleSendEmailCopy}
+          onClose={() => { if (!emailBusy) { setShowEmailModal(false); pendingEmailDataRef.current = null; } }}
+        />
+      )}
 
       {isCropping && canvasRef.current && (
         <FreeCrop
