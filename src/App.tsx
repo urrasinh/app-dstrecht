@@ -111,6 +111,7 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingText, setLoadingText] = useState('');
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingImageSrc, setLoadingImageSrc] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showCropGrid, setShowCropGrid] = useState(false);
@@ -499,6 +500,8 @@ export default function App() {
               log('rotatedImg.onload → procesar directo');
               finishUpload();
               setOriginalDimensions(rotatedImg.width, rotatedImg.height);
+              // Show the uploaded photo in the loading screen (color-fill reveal)
+              setLoadingImageSrc(dataUrl);
               // Load directly at (already-capped) native resolution — no modal.
               startInitialProcessing(rotatedImg, false);
             };
@@ -534,6 +537,7 @@ export default function App() {
   const loadTutorialDemo = async () => {
     const demo = await loadDemoImage();
     setOriginalDimensions(demo.width, demo.height);
+    setLoadingImageSrc(demo.src || null);
     setIsProcessing(true);
     setLoadingProgress(0);
     setLoadingText('CARGANDO DEMO...');
@@ -1265,6 +1269,7 @@ export default function App() {
         <Spinner
           progress={loadingProgress}
           message={loadingText}
+          imageSrc={loadingImageSrc}
           info={{
             dim: exifData.origW ? `${exifData.origW}×${exifData.origH}px` : '',
             mp: exifData.origW ? `${((exifData.origW * exifData.origH) / 1e6).toFixed(1)} MP` : '',

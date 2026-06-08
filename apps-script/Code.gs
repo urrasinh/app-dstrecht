@@ -52,8 +52,8 @@ function doPost(e) {
         return jsonOut({ ok: true, email: email, isAdmin: admin });
       }
       if (body.action === 'emailImage') {
-        // Any authenticated user can email a copy to themselves.
-        return emailImageToUser(body, email);
+        // Any authenticated user can email themselves a download link.
+        return emailImageToUser(body, email, props);
       }
       if (body.action === 'registerPushToken') {
         if (!admin) return jsonOut({ ok: false, error: 'No autorizado' });
@@ -120,7 +120,7 @@ function handleUpload(body, email, props) {
 
 // ── Email a processed image copy to the user ────────────────────────────────
 
-function emailImageToUser(body, email) {
+function emailImageToUser(body, email, props) {
   var to = String(body.toEmail || email || '').trim();
   if (!to) return jsonOut({ ok: false, error: 'Sin correo destino' });
   if (!body.fileBase64) return jsonOut({ ok: false, error: 'Sin imagen' });
@@ -133,25 +133,39 @@ function emailImageToUser(body, email) {
   }
 
   try {
+    // Upload the processed image to Drive and email a download LINK
+    // (lighter and more reliable than a base64 attachment).
+    var DRIVE_FOLDER_ID = props.getProperty('DRIVE_FOLDER_ID');
+    var folder = DriveApp.getFolderById(DRIVE_FOLDER_ID);
     var blob = Utilities.newBlob(
       Utilities.base64Decode(body.fileBase64),
       body.mimeType || 'image/jpeg',
       body.fileName || 'pictografia.jpg'
     );
+    var file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    var fileId = file.getId();
+    var viewLink = file.getUrl();
+    var downloadLink = 'https://drive.google.com/uc?export=download&id=' + fileId;
+
     var html =
       '<div style="font-family:Arial,sans-serif;color:#1d1612">' +
       '<h2 style="color:#7c2d3a;margin:0 0 8px">Tu imagen procesada</h2>' +
-      '<p style="margin:0 0 12px">Adjuntamos la imagen realzada con DStretch desde <b>Filtros Pictografías</b>.</p>' +
-      '<p style="color:#888;font-size:12px;margin-top:16px">Fundación Paqarina · fundacionpaqarina.com</p>' +
+      '<p style="margin:0 0 14px">Tu imagen realzada con DStretch está lista. Usa el enlace para descargarla:</p>' +
+      '<p style="margin:0 0 10px">' +
+      '<a href="' + downloadLink + '" style="background:#7c2d3a;color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:bold;display:inline-block">⬇ Descargar imagen</a>' +
+      '</p>' +
+      '<p style="margin:0 0 14px;font-size:13px">o <a href="' + viewLink + '" style="color:#7c2d3a">ábrela en Google Drive</a>.</p>' +
+      '<p style="color:#888;font-size:12px;margin-top:16px">Filtros Pictografías · Fundación Paqarina · fundacionpaqarina.com</p>' +
       '</div>';
+
     MailApp.sendEmail({
       to: to,
       subject: 'Tu imagen procesada — Filtros Pictografías',
       htmlBody: html,
-      attachments: [blob],
       name: 'Filtros Pictografías'
     });
-    return jsonOut({ ok: true, to: to });
+    return jsonOut({ ok: true, to: to, link: viewLink });
   } catch (err) {
     return jsonOut({ ok: false, error: String(err && err.message || err) });
   }

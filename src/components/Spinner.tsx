@@ -10,6 +10,8 @@ interface SpinnerInfo {
 interface SpinnerProps {
     progress: number;
     message: string;
+    /** Uploaded photo (data URL) shown with a bottom→top color-fill reveal. */
+    imageSrc?: string | null;
     /** Detected metadata shown as chips (no GPS). */
     info?: SpinnerInfo;
 }
@@ -51,7 +53,7 @@ const Birds = ({ color, eye }: { color: string; eye: string }) => {
     );
 };
 
-export const Spinner: React.FC<SpinnerProps> = ({ progress, message, info }) => {
+export const Spinner: React.FC<SpinnerProps> = ({ progress, message, imageSrc, info }) => {
     const [tipIdx, setTipIdx] = useState(0);
 
     useEffect(() => {
@@ -74,27 +76,58 @@ export const Spinner: React.FC<SpinnerProps> = ({ progress, message, info }) => 
             {/* Foundation logo (prominent) */}
             <img src="/paqarina-horizontal.png" alt="Fundación Paqarina" className="h-16 max-w-[78vw] object-contain" />
 
-            {/* Birds pictograph with bottom→top color fill reveal */}
-            <div className="relative w-[210px] h-[130px] max-w-[72vw]">
-                <div className="absolute inset-0"><Birds color="#3e3024" eye="#0a0806" /></div>
-                <div
-                    className="absolute inset-0"
-                    style={{ clipPath: clip, WebkitClipPath: clip, transition: 'clip-path 0.35s linear' }}
-                >
-                    <Birds color="#ad3f53" eye="#0a0806" />
+            {/* Uploaded photo revealed in color bottom→top (or birds pictograph as fallback) */}
+            {imageSrc ? (
+                <div className="relative rounded-2xl overflow-hidden border border-burdeo-800/60 shadow-2xl bg-tierra-950 w-[230px] max-w-[78vw]">
+                    {/* dim grayscale base */}
+                    <img
+                        src={imageSrc}
+                        alt=""
+                        draggable={false}
+                        className="block w-full h-auto max-h-[34dvh] object-contain select-none"
+                        style={{ filter: 'grayscale(1) brightness(0.4)' }}
+                    />
+                    {/* color reveal */}
+                    <img
+                        src={imageSrc}
+                        alt=""
+                        draggable={false}
+                        className="absolute inset-0 w-full h-full object-contain select-none"
+                        style={{ clipPath: clip, WebkitClipPath: clip, transition: 'clip-path 0.35s linear' }}
+                    />
+                    {/* scan line at the fill boundary */}
+                    <div
+                        className="absolute left-0 right-0 pointer-events-none"
+                        style={{
+                            top: `${100 - pct}%`,
+                            height: 2,
+                            background: 'rgb(201 168 97)',
+                            boxShadow: '0 0 10px 2px rgba(201,168,97,0.8)',
+                            transition: 'top 0.35s linear',
+                        }}
+                    />
                 </div>
-                {/* scan line at the fill boundary */}
-                <div
-                    className="absolute left-0 right-0 pointer-events-none"
-                    style={{
-                        top: `${100 - pct}%`,
-                        height: 2,
-                        background: 'rgb(201 168 97)',
-                        boxShadow: '0 0 10px 2px rgba(201,168,97,0.8)',
-                        transition: 'top 0.35s linear',
-                    }}
-                />
-            </div>
+            ) : (
+                <div className="relative w-[210px] h-[130px] max-w-[72vw]">
+                    <div className="absolute inset-0"><Birds color="#3e3024" eye="#0a0806" /></div>
+                    <div
+                        className="absolute inset-0"
+                        style={{ clipPath: clip, WebkitClipPath: clip, transition: 'clip-path 0.35s linear' }}
+                    >
+                        <Birds color="#ad3f53" eye="#0a0806" />
+                    </div>
+                    <div
+                        className="absolute left-0 right-0 pointer-events-none"
+                        style={{
+                            top: `${100 - pct}%`,
+                            height: 2,
+                            background: 'rgb(201 168 97)',
+                            boxShadow: '0 0 10px 2px rgba(201,168,97,0.8)',
+                            transition: 'top 0.35s linear',
+                        }}
+                    />
+                </div>
+            )}
 
             {/* Progress + message */}
             <div className="flex flex-col items-center gap-1.5 w-[230px] max-w-[78vw]">
