@@ -10,6 +10,7 @@ import { applyCssFilterString } from './utils/cssFilterPixels';
 import type { WorkerRequest, WorkerResponse } from './types';
 
 import { InfoModal } from './components/InfoModal';
+import { AboutModal } from './components/AboutModal';
 import { ControlsPanel } from './components/ControlsPanel';
 import { FloatingTools } from './components/FloatingTools';
 import { FreeCrop } from './components/FreeCrop';
@@ -75,6 +76,7 @@ export default function App() {
 
   // State: Modals
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
   // State: Filters
   const [currentMode, setCurrentMode] = useState('YDS');
   const [currentFilter, setCurrentFilter] = useState('Normal');
@@ -1097,6 +1099,8 @@ export default function App() {
         gpsFull={(exifData.latDD && exifData.lonDD) ? `${exifData.latDD.toFixed(6)}, ${exifData.lonDD.toFixed(6)}` : 'No registradas en el archivo'}
       />
 
+      <AboutModal isOpen={showAbout} onClose={() => setShowAbout(false)} />
+
       {isCropping && canvasRef.current && (
         <FreeCrop
           imageUrl={canvasRef.current.toDataURL('image/jpeg', 0.8)}
@@ -1123,9 +1127,15 @@ export default function App() {
       {/* Header */}
       <header className="h-14 bg-tierra-900 border-b border-tierra-800 flex items-center justify-between px-4 z-10 shrink-0 shadow-md">
         <div className="flex items-center gap-2.5">
-          <div className="flex items-center leading-none">
-            <img src="/paqarina-horizontal.png" alt="Paqarina" className="h-8 object-contain" />
-          </div>
+          <a
+            href="https://fundacionpaqarina.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center leading-none"
+            title="Fundación Paqarina"
+          >
+            <img src="/paqarina-horizontal.png" alt="Fundación Paqarina" className="h-8 object-contain" />
+          </a>
           {(uploadSync.pending > 0 || !uploadSync.online) && (
             <div
               onClick={() => uploadSync.online && uploadSync.sync()}
@@ -1280,9 +1290,15 @@ export default function App() {
                   {getUserEmail(user)}
                   {user?.isAnonymous && <span className="ml-1 text-ocre-400/80">(invitado)</span>}
                 </div>
-                <button onClick={async () => { setIsMenuOpen(false); await logout(); }} className="px-4 py-3 text-burdeo-500 text-sm font-semibold flex items-center gap-3 hover:bg-tierra-800 active:bg-burdeo-900 transition-colors">
+                <button onClick={async () => { setIsMenuOpen(false); await logout(); }} className="px-4 py-3 text-burdeo-500 text-sm font-semibold flex items-center gap-3 hover:bg-tierra-800 active:bg-burdeo-900 transition-colors border-b border-tierra-800">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                   Cerrar sesión
+                </button>
+                <button
+                  onClick={() => { setIsMenuOpen(false); setShowAbout(true); }}
+                  className="px-4 py-2.5 text-[10px] text-tierra-400 hover:text-crema-300 hover:bg-tierra-800 transition-colors text-left"
+                >
+                  Acerca de · WebApp DStretch
                 </button>
               </div>
             )}
