@@ -71,8 +71,8 @@ export const Spinner: React.FC<SpinnerProps> = ({ progress, message, info }) => 
 
     return (
         <div className="fixed inset-0 bg-tierra-950/97 z-[100] flex flex-col items-center justify-center gap-4 backdrop-blur-sm text-center p-5 overflow-y-auto">
-            {/* Foundation logo */}
-            <img src="/paqarina-horizontal.png" alt="Fundación Paqarina" className="h-7 object-contain opacity-90" />
+            {/* Foundation logo (prominent) */}
+            <img src="/paqarina-horizontal.png" alt="Fundación Paqarina" className="h-16 max-w-[78vw] object-contain" />
 
             {/* Birds pictograph with bottom→top color fill reveal */}
             <div className="relative w-[210px] h-[130px] max-w-[72vw]">
