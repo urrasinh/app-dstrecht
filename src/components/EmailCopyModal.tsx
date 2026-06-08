@@ -2,29 +2,21 @@ import React, { useEffect, useState } from 'react';
 
 interface EmailCopyModalProps {
     isOpen: boolean;
-    defaultEmail: string;
+    /** Session email — fixed recipient (shown read-only). */
+    email: string;
     busy: boolean;
-    onSend: (email: string, remember: boolean) => void;
+    onSend: (remember: boolean) => void;
     onClose: () => void;
 }
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-export const EmailCopyModal: React.FC<EmailCopyModalProps> = ({ isOpen, defaultEmail, busy, onSend, onClose }) => {
-    const [email, setEmail] = useState(defaultEmail);
+export const EmailCopyModal: React.FC<EmailCopyModalProps> = ({ isOpen, email, busy, onSend, onClose }) => {
     const [remember, setRemember] = useState(false);
 
-    // Reset the field to the account email each time the modal opens
     useEffect(() => {
-        if (isOpen) {
-            setEmail(defaultEmail);
-            setRemember(false);
-        }
-    }, [isOpen, defaultEmail]);
+        if (isOpen) setRemember(false);
+    }, [isOpen]);
 
     if (!isOpen) return null;
-
-    const valid = EMAIL_RE.test(email.trim());
 
     return (
         <div className="fixed inset-0 z-[400] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={busy ? undefined : onClose}>
@@ -45,15 +37,10 @@ export const EmailCopyModal: React.FC<EmailCopyModalProps> = ({ isOpen, defaultE
                 </div>
 
                 <div className="px-6 py-3 flex flex-col gap-3">
-                    <input
-                        type="email"
-                        inputMode="email"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                        placeholder="tu@correo.com"
-                        disabled={busy}
-                        className="bg-tierra-950 border border-tierra-700 rounded-xl px-4 py-3 text-sm text-white placeholder-tierra-500 focus:outline-none focus:border-ocre-500 focus:ring-1 focus:ring-ocre-500 disabled:opacity-50"
-                    />
+                    <div className="bg-tierra-950 border border-tierra-700 rounded-xl px-4 py-3">
+                        <p className="text-[10px] text-crema-400 uppercase tracking-widest font-bold mb-0.5">Se enviará a</p>
+                        <p className="text-sm text-white font-mono truncate" title={email}>{email || '—'}</p>
+                    </div>
 
                     <label className="flex items-center gap-2.5 cursor-pointer select-none px-1">
                         <input
@@ -69,8 +56,8 @@ export const EmailCopyModal: React.FC<EmailCopyModalProps> = ({ isOpen, defaultE
 
                 <div className="px-6 pb-6 pt-1 flex flex-col gap-2">
                     <button
-                        onClick={() => onSend(email.trim(), remember)}
-                        disabled={busy || !valid}
+                        onClick={() => onSend(remember)}
+                        disabled={busy || !email}
                         className="w-full bg-burdeo-700 hover:bg-burdeo-600 active:bg-burdeo-800 text-white font-semibold py-3 rounded-xl transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                     >
                         {busy && <span className="w-3.5 h-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin"></span>}

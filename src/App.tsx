@@ -12,7 +12,7 @@ import type { WorkerRequest, WorkerResponse } from './types';
 import { InfoModal } from './components/InfoModal';
 import { AboutModal } from './components/AboutModal';
 import { EmailCopyModal } from './components/EmailCopyModal';
-import { sendImageEmail, readEmailPref, saveEmailPref } from './utils/emailApi';
+import { sendImageEmail, readEmailPref, saveEmailPref, isQuotaBlockedToday, markQuotaBlockedToday } from './utils/emailApi';
 import { ControlsPanel } from './components/ControlsPanel';
 import { FloatingTools } from './components/FloatingTools';
 import { FreeCrop } from './components/FreeCrop';
@@ -856,34 +856,59 @@ export default function App() {
     img.src = offCanvas.toDataURL();
   };
 
-  // After a download: auto-send a copy if the user opted in, otherwise offer it.
+  // After a download: auto-send a copy to the session email if the user opted
+  // in, otherwise offer it. Always sends to the current session address.
   const offerEmailCopy = (dataUrl: string, fileName: string) => {
     const base64 = dataUrl.split(',')[1] || '';
     if (!base64) return;
+    const to = getUserEmail(user);
+    if (!to) return; // no session email → nothing to send to
+
+    // Daily Gmail quota reached earlier today → back off until tomorrow.
+    if (isQuotaBlockedToday()) {
+      showToast('Límite diario de correos alcanzado. Se reanudará mañana.');
+      return;
+    }
+
     const pref = readEmailPref();
-    if (pref?.enabled && pref.email) {
-      showToast(`Enviando copia a ${pref.email}…`);
-      sendImageEmail({ fileBase64: base64, fileName, mimeType: 'image/jpeg', toEmail: pref.email })
-        .then(() => showToast(`Copia enviada a ${pref.email} ✓`))
-        .catch((e: any) => showToast(`No se pudo enviar el correo: ${e?.message || e}`));
+    if (pref?.enabled) {
+      showToast(`Enviando copia a ${to}…`);
+      sendImageEmail({ fileBase64: base64, fileName, mimeType: 'image/jpeg', toEmail: to })
+        .then(() => showToast(`Copia enviada a ${to} ✓`))
+        .catch((e: any) => {
+          if (e?.code === 'QUOTA') {
+            markQuotaBlockedToday();
+            showToast('Límite diario de correos alcanzado. Se reanudará mañana.');
+          } else {
+            showToast(`No se pudo enviar el correo: ${e?.message || e}`);
+          }
+        });
     } else {
       pendingEmailDataRef.current = { base64, fileName };
       setShowEmailModal(true);
     }
   };
 
-  const handleSendEmailCopy = async (toEmail: string, remember: boolean) => {
+  const handleSendEmailCopy = async (remember: boolean) => {
     const data = pendingEmailDataRef.current;
-    if (!data) { setShowEmailModal(false); return; }
+    const to = getUserEmail(user);
+    if (!data || !to) { setShowEmailModal(false); return; }
     setEmailBusy(true);
     try {
-      await sendImageEmail({ fileBase64: data.base64, fileName: data.fileName, mimeType: 'image/jpeg', toEmail });
-      if (remember) saveEmailPref({ enabled: true, email: toEmail });
-      showToast(`Copia enviada a ${toEmail} ✓`);
+      await sendImageEmail({ fileBase64: data.base64, fileName: data.fileName, mimeType: 'image/jpeg', toEmail: to });
+      if (remember) saveEmailPref({ enabled: true, email: to });
+      showToast(`Copia enviada a ${to} ✓`);
       setShowEmailModal(false);
       pendingEmailDataRef.current = null;
     } catch (e: any) {
-      showToast(`No se pudo enviar: ${e?.message || e}`);
+      if (e?.code === 'QUOTA') {
+        markQuotaBlockedToday();
+        showToast('Límite diario de correos alcanzado. Se reanudará mañana.');
+        setShowEmailModal(false);
+        pendingEmailDataRef.current = null;
+      } else {
+        showToast(`No se pudo enviar: ${e?.message || e}`);
+      }
     } finally {
       setEmailBusy(false);
     }
@@ -1222,7 +1247,7 @@ export default function App() {
 
       <EmailCopyModal
         isOpen={showEmailModal}
-        defaultEmail={getUserEmail(user)}
+        email={getUserEmail(user)}
         busy={emailBusy}
         onSend={handleSendEmailCopy}
         onClose={() => { if (!emailBusy) { setShowEmailModal(false); pendingEmailDataRef.current = null; } }}

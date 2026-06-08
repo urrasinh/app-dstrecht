@@ -124,6 +124,14 @@ function emailImageToUser(body, email) {
   var to = String(body.toEmail || email || '').trim();
   if (!to) return jsonOut({ ok: false, error: 'Sin correo destino' });
   if (!body.fileBase64) return jsonOut({ ok: false, error: 'Sin imagen' });
+
+  // Stop sending once the daily Gmail quota is exhausted; the client will
+  // back off until the next day (code: 'QUOTA').
+  var remaining = MailApp.getRemainingDailyQuota();
+  if (remaining <= 0) {
+    return jsonOut({ ok: false, code: 'QUOTA', error: 'Límite diario de correos alcanzado. Se reanudará mañana.' });
+  }
+
   try {
     var blob = Utilities.newBlob(
       Utilities.base64Decode(body.fileBase64),

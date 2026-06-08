@@ -44,7 +44,11 @@ export async function sendImageEmail(opts: EmailImageOpts): Promise<void> {
     } catch {
         throw new Error('Respuesta no-JSON del backend (¿despliegue desactualizado?)');
     }
-    if (!json.ok) throw new Error(json.error || 'Error del backend');
+    if (!json.ok) {
+        const err = new Error(json.error || 'Error del backend') as Error & { code?: string };
+        if (json.code) err.code = json.code;
+        throw err;
+    }
 }
 
 // ── Preference: auto-send a copy after each download ─────────────────────────
@@ -79,6 +83,34 @@ export function saveEmailPref(pref: EmailPref): void {
 export function clearEmailPref(): void {
     try {
         localStorage.removeItem(EMAIL_PREF_KEY);
+    } catch {
+        /* noop */
+    }
+}
+
+// ── Daily-quota backoff ──────────────────────────────────────────────────────
+// When the backend reports the Gmail daily quota is exhausted, we stop trying
+// for the rest of the (local) calendar day to avoid pointless requests.
+
+const QUOTA_BLOCK_KEY = 'email-quota-block';
+
+function todayStr(): string {
+    return new Date().toISOString().slice(0, 10); // YYYY-MM-DD (local-ish, stable per day)
+}
+
+/** True if a send already hit the daily quota earlier today. */
+export function isQuotaBlockedToday(): boolean {
+    try {
+        return localStorage.getItem(QUOTA_BLOCK_KEY) === todayStr();
+    } catch {
+        return false;
+    }
+}
+
+/** Remember that the quota is exhausted today (auto-clears next calendar day). */
+export function markQuotaBlockedToday(): void {
+    try {
+        localStorage.setItem(QUOTA_BLOCK_KEY, todayStr());
     } catch {
         /* noop */
     }
