@@ -6,10 +6,10 @@ import { useAuth } from './contexts/AuthContext';
 import { logout, listenForegroundPush, getUserEmail } from './firebase';
 import { whoami } from './utils/adminApi';
 import { MODES, VISUAL_FILTERS, buildFilterDefaults } from './utils/dstretch';
+import { applyCssFilterString } from './utils/cssFilterPixels';
 import type { WorkerRequest, WorkerResponse } from './types';
 
 import { InfoModal } from './components/InfoModal';
-import { ResolutionModal } from './components/ResolutionModal';
 import { ControlsPanel } from './components/ControlsPanel';
 import { FloatingTools } from './components/FloatingTools';
 import { FreeCrop } from './components/FreeCrop';
@@ -60,7 +60,6 @@ export default function App() {
   // State: Images
   const [baseImage, setBaseImage] = useState<ImageData | null>(null);
   const [cachedModes, setCachedModes] = useState<Record<string, ImageData>>({});
-  const [pendingRotatedImg, setPendingRotatedImg] = useState<HTMLImageElement | null>(null);
   const [previews, setPreviews] = useState<{ mode: string; dataUrl: string; desc: string }[]>([]);
 
 
@@ -68,13 +67,13 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [loadingText, setLoadingText] = useState('');
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingImageSrc, setLoadingImageSrc] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showCropGrid, setShowCropGrid] = useState(false);
   const [isShowingOriginal, setIsShowingOriginal] = useState(false);
 
   // State: Modals
-  const [showResModal, setShowResModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   // State: Filters
   const [currentMode, setCurrentMode] = useState('YDS');
@@ -450,12 +449,13 @@ export default function App() {
 
             const rotatedImg = new Image();
             rotatedImg.onload = () => {
-              log('rotatedImg.onload → ResolutionModal');
+              log('rotatedImg.onload → procesar directo');
               finishUpload();
-              setPendingRotatedImg(rotatedImg);
               setOriginalDimensions(rotatedImg.width, rotatedImg.height);
-              setIsProcessing(false);
-              setShowResModal(true);
+              // Show the uploaded photo in the loading screen (fill-up reveal)
+              setLoadingImageSrc(dataUrl);
+              // Load directly at (already-capped) native resolution — no modal.
+              startInitialProcessing(rotatedImg, false);
             };
             rotatedImg.onerror = () => {
               log('rotatedImg.onerror');
@@ -489,6 +489,7 @@ export default function App() {
   const loadTutorialDemo = async () => {
     const demo = await loadDemoImage();
     setOriginalDimensions(demo.width, demo.height);
+    setLoadingImageSrc(demo.src || null);
     setIsProcessing(true);
     setLoadingProgress(0);
     setLoadingText('CARGANDO DEMO...');
@@ -496,7 +497,6 @@ export default function App() {
   };
 
   const startInitialProcessing = (img: HTMLImageElement, scaleDown: boolean) => {
-    setShowResModal(false);
     resetAllFiltersUI();
     setIsProcessing(true);
     setLoadingProgress(0);
@@ -523,7 +523,7 @@ export default function App() {
       if (stuckTimerRef.current) clearTimeout(stuckTimerRef.current);
       stuckTimerRef.current = window.setTimeout(() => {
         setIsProcessing(false);
-        showToast("El procesamiento tardó demasiado. Intenta con 'Optimizar' (2048px).");
+        showToast("El procesamiento tardó demasiado. Intenta con una foto más pequeña.");
         stuckTimerRef.current = null;
       }, 180000);
 
@@ -535,7 +535,7 @@ export default function App() {
     } catch (err) {
       console.error("startInitialProcessing failed", err);
       setIsProcessing(false);
-      showToast("Imagen demasiado grande o memoria insuficiente. Intenta con 'Optimizar'.");
+      showToast("Imagen demasiado grande o memoria insuficiente. Intenta con una foto más pequeña.");
     }
   };
 
@@ -683,30 +683,19 @@ export default function App() {
   };
 
   const handleBake = () => {
-    if (!baseImage || !cachedModes[currentMode] || !canvasRef.current) return;
+    if (!baseImage || !cachedModes[currentMode]) return;
 
     setIsProcessing(true);
     setLoadingProgress(0);
     setLoadingText("FIJANDO FILTROS...");
 
-    // Get the current rendered canvas with filters applied
-    const bakeCanvas = document.createElement('canvas');
-    bakeCanvas.width = canvasRef.current.width;
-    bakeCanvas.height = canvasRef.current.height;
-    const bCtx = bakeCanvas.getContext('2d')!;
-
-    // Draw the image without transform but WITH filters
+    // Bake the active visual filter into the pixels of the current DStretch mode.
+    // We replicate the CSS filter math in JS (applyCssFilterString) rather than
+    // using ctx.filter, which silently does nothing on iOS Safari < 17.4 and was
+    // the reason baked/exported images dropped the visual filter on iPhones.
     const def = VISUAL_FILTERS[currentFilter];
-    bCtx.filter = def ? def.build(filterParams[currentFilter] || {}) : '';
-
-    const off = document.createElement('canvas');
-    off.width = cachedModes[currentMode].width;
-    off.height = cachedModes[currentMode].height;
-    off.getContext('2d')!.putImageData(cachedModes[currentMode], 0, 0);
-
-    bCtx.drawImage(off, 0, 0);
-
-    const bakedImageData = bCtx.getImageData(0, 0, bakeCanvas.width, bakeCanvas.height);
+    const filterStr = def ? def.build(filterParams[currentFilter] || {}) : '';
+    const bakedImageData = applyCssFilterString(cachedModes[currentMode], filterStr);
 
     showToast("Filtros fijados. Recalculando matrices focalizadas...");
     resetAllFiltersUI();
@@ -826,19 +815,22 @@ export default function App() {
   const downloadImage = () => {
     if (!canvasRef.current || !baseImage) return;
 
-    // Build an off-screen canvas with the visual filter baked in (the on-screen canvas
-    // applies the filter via CSS, which doesn't affect toDataURL output).
+    // Export from the raw ImageData with the visual filter baked into pixels
+    // (applyCssFilterString) — NOT ctx.filter, which is a no-op on iOS Safari
+    // < 17.4 and would export the unfiltered image on iPhones.
     let dataUrl: string;
     try {
+      const srcData = isShowingOriginal ? baseImage : cachedModes[currentMode];
+      const exportData = (!isShowingOriginal && cssFilterString && cssFilterString !== 'none')
+        ? applyCssFilterString(srcData, cssFilterString)
+        : srcData;
+
       const exportCanvas = document.createElement('canvas');
-      exportCanvas.width = canvasRef.current.width;
-      exportCanvas.height = canvasRef.current.height;
+      exportCanvas.width = exportData.width;
+      exportCanvas.height = exportData.height;
       const eCtx = exportCanvas.getContext('2d');
       if (eCtx) {
-        if (!isShowingOriginal && cssFilterString && cssFilterString !== 'none') {
-          eCtx.filter = cssFilterString;
-        }
-        eCtx.drawImage(canvasRef.current, 0, 0);
+        eCtx.putImageData(exportData, 0, 0);
         dataUrl = exportCanvas.toDataURL('image/jpeg', 0.95);
       } else {
         dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.95);
@@ -1096,24 +1088,6 @@ export default function App() {
         <span>{toastMsg}</span>
       </div>
 
-      <ResolutionModal
-        isOpen={showResModal}
-        dim={`${exifData.origW} x ${exifData.origH}px`}
-        mp={`~${((exifData.origW * exifData.origH) / 1000000).toFixed(1)} Megapíxeles`}
-        onOptimize={() => {
-          if (!pendingRotatedImg) return;
-          const img = pendingRotatedImg;
-          setPendingRotatedImg(null); // free reference for GC
-          startInitialProcessing(img, true);
-        }}
-        onNative={() => {
-          if (!pendingRotatedImg) return;
-          const img = pendingRotatedImg;
-          setPendingRotatedImg(null);
-          startInitialProcessing(img, false);
-        }}
-      />
-
       <InfoModal
         isOpen={showInfoModal}
         onClose={() => setShowInfoModal(false)}
@@ -1131,7 +1105,20 @@ export default function App() {
         />
       )}
 
-      {isProcessing && <Spinner progress={loadingProgress} message={loadingText} />}
+      {isProcessing && (
+        <Spinner
+          progress={loadingProgress}
+          message={loadingText}
+          imageSrc={loadingImageSrc}
+          info={{
+            dim: exifData.origW ? `${exifData.origW}×${exifData.origH}px` : '',
+            mp: exifData.origW ? `${((exifData.origW * exifData.origH) / 1e6).toFixed(1)} MP` : '',
+            camera: `${exifData.make} ${exifData.model}`.trim().replace(/^Desconocido$/, ''),
+            gps: (exifData.latDD && exifData.lonDD) ? `${exifData.latDD.toFixed(4)}, ${exifData.lonDD.toFixed(4)}` : '',
+            date: exifData.date && exifData.date !== 'Fecha no registrada' ? exifData.date : '',
+          }}
+        />
+      )}
 
       {/* Header */}
       <header className="h-14 bg-tierra-900 border-b border-tierra-800 flex items-center justify-between px-4 z-10 shrink-0 shadow-md">
