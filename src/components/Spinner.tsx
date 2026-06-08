@@ -4,16 +4,13 @@ interface SpinnerInfo {
     dim?: string;
     mp?: string;
     camera?: string;
-    gps?: string;
     date?: string;
 }
 
 interface SpinnerProps {
     progress: number;
     message: string;
-    /** Data URL of the uploaded photo, shown with a bottom→top color fill reveal. */
-    imageSrc?: string | null;
-    /** Detected metadata shown as chips under the image. */
+    /** Detected metadata shown as chips (no GPS). */
     info?: SpinnerInfo;
 }
 
@@ -27,24 +24,34 @@ const TIPS: { title: string; text: string }[] = [
     { title: 'Compara modos', text: 'YDS, YBK, CRGB… cada matriz realza pigmentos distintos. Prueba varios antes de decidir.' },
 ];
 
-// Lightweight inline pictograph (no network request) — three stylized figures
-// echoing rock-art bird/camelid motifs. Used as the loading graphic when there
-// is no uploaded photo (e.g. baking, rotating, cropping).
-const Pictograph = ({ color }: { color: string }) => (
-    <svg viewBox="0 0 150 80" className="w-full h-full" fill="none" stroke={color} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round">
-        {[{ x: 4, y: 6, s: 1.05 }, { x: 56, y: 0, s: 1.3 }, { x: 104, y: 30, s: 0.78 }].map((f, i) => (
-            <g key={i} transform={`translate(${f.x} ${f.y}) scale(${f.s})`}>
-                <ellipse cx="20" cy="22" rx="15" ry="6" fill={color} stroke="none" />
-                <path d="M33 18 L38 5" />
-                <circle cx="39" cy="4" r="3.2" fill={color} stroke="none" />
-                <path d="M41 4 L48 3" />
-                <path d="M11 27 L10 35 M18 27 L18 36 M26 27 L27 35" />
-            </g>
-        ))}
-    </svg>
-);
+// Three rock-art birds (vectorized from the reference pictograph) — long beak,
+// hollow eye, angular body, two legs, descending in scale left→right. Pure
+// inline SVG (no network request). `eye` punches the hollow eye against the bg.
+const Birds = ({ color, eye }: { color: string; eye: string }) => {
+    const Bird = ({ t }: { t: string }) => (
+        <g transform={t}>
+            {/* beak + long neck reaching up-left */}
+            <path d="M33 16 L2 5 L5 12 L32 22 Z" fill={color} />
+            {/* angular body + tail triangle */}
+            <path d="M34 23 L24 37 L41 34 L30 53 L66 29 L45 31 Z" fill={color} />
+            {/* two legs */}
+            <path d="M45 44 L43 61 M54 42 L55 59" stroke={color} strokeWidth={3.4} strokeLinecap="round" fill="none" />
+            {/* head */}
+            <circle cx="39" cy="17" r="8.5" fill={color} />
+            {/* hollow eye */}
+            <circle cx="40" cy="16" r="3.1" fill={eye} />
+        </g>
+    );
+    return (
+        <svg viewBox="0 0 168 104" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
+            <Bird t="translate(2 16) scale(1)" />
+            <Bird t="translate(52 2) scale(1.16)" />
+            <Bird t="translate(110 40) scale(0.72)" />
+        </svg>
+    );
+};
 
-export const Spinner: React.FC<SpinnerProps> = ({ progress, message, imageSrc, info }) => {
+export const Spinner: React.FC<SpinnerProps> = ({ progress, message, info }) => {
     const [tipIdx, setTipIdx] = useState(0);
 
     useEffect(() => {
@@ -60,42 +67,23 @@ export const Spinner: React.FC<SpinnerProps> = ({ progress, message, imageSrc, i
     if (info?.dim) chips.push(info.dim);
     if (info?.mp) chips.push(info.mp);
     if (info?.camera) chips.push(info.camera);
-    if (info?.gps) chips.push('📍 ' + info.gps);
     if (info?.date) chips.push(info.date);
 
     return (
         <div className="fixed inset-0 bg-tierra-950/97 z-[100] flex flex-col items-center justify-center gap-4 backdrop-blur-sm text-center p-5 overflow-y-auto">
-            {/* Image reveal (or pictograph fallback) */}
-            <div className="relative rounded-2xl overflow-hidden border border-burdeo-800/60 shadow-2xl bg-tierra-950 w-[230px] max-w-[78vw]">
-                {imageSrc ? (
-                    <>
-                        <img
-                            src={imageSrc}
-                            alt=""
-                            draggable={false}
-                            className="block w-full h-auto max-h-[36dvh] object-contain select-none"
-                            style={{ filter: 'grayscale(1) brightness(0.4)' }}
-                        />
-                        <img
-                            src={imageSrc}
-                            alt=""
-                            draggable={false}
-                            className="absolute inset-0 w-full h-full object-contain select-none"
-                            style={{ clipPath: clip, WebkitClipPath: clip, transition: 'clip-path 0.35s linear' }}
-                        />
-                    </>
-                ) : (
-                    <div className="relative w-full h-[150px]">
-                        <div className="absolute inset-0 p-5 opacity-25"><Pictograph color="#b18f6a" /></div>
-                        <div
-                            className="absolute inset-0 p-5"
-                            style={{ clipPath: clip, WebkitClipPath: clip, transition: 'clip-path 0.35s linear' }}
-                        >
-                            <Pictograph color="#ad3f53" />
-                        </div>
-                    </div>
-                )}
-                {/* Scan line at the fill boundary */}
+            {/* Foundation logo */}
+            <img src="/paqarina-horizontal.png" alt="Fundación Paqarina" className="h-7 object-contain opacity-90" />
+
+            {/* Birds pictograph with bottom→top color fill reveal */}
+            <div className="relative w-[210px] h-[130px] max-w-[72vw]">
+                <div className="absolute inset-0"><Birds color="#3e3024" eye="#0a0806" /></div>
+                <div
+                    className="absolute inset-0"
+                    style={{ clipPath: clip, WebkitClipPath: clip, transition: 'clip-path 0.35s linear' }}
+                >
+                    <Birds color="#ad3f53" eye="#0a0806" />
+                </div>
+                {/* scan line at the fill boundary */}
                 <div
                     className="absolute left-0 right-0 pointer-events-none"
                     style={{
@@ -110,9 +98,7 @@ export const Spinner: React.FC<SpinnerProps> = ({ progress, message, imageSrc, i
 
             {/* Progress + message */}
             <div className="flex flex-col items-center gap-1.5 w-[230px] max-w-[78vw]">
-                <div className="flex items-baseline gap-2">
-                    <span className="text-burdeo-500 text-3xl font-mono font-bold tabular-nums">{pct}%</span>
-                </div>
+                <span className="text-burdeo-500 text-3xl font-mono font-bold tabular-nums">{pct}%</span>
                 <div className="w-full h-1.5 rounded-full bg-tierra-800 overflow-hidden">
                     <div
                         className="h-full rounded-full bg-burdeo-600"
@@ -122,7 +108,7 @@ export const Spinner: React.FC<SpinnerProps> = ({ progress, message, imageSrc, i
                 <p className="text-[11px] font-bold text-crema-200 tracking-widest uppercase mt-1">{message}</p>
             </div>
 
-            {/* Detected metadata chips */}
+            {/* Detected metadata chips (no coordinates) */}
             {chips.length > 0 && (
                 <div className="flex flex-wrap justify-center gap-1.5 max-w-[320px]">
                     {chips.map((c, i) => (
